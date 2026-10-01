@@ -62,7 +62,10 @@ export function Home() {
   }, [go]);
 
   const onEvent = useCallback((e: StageEvent) => { if (e.type === 'frame') setReady(true); }, []);
-  const onStage = useCallback((s: Stage | null) => { stageRef.current = s; }, []);
+  const onStage = useCallback((s: Stage | null) => {
+    stageRef.current = s;
+    if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __stage?: Stage | null }).__stage = s;
+  }, []);
 
   const hoverCard = (id: string) => {
     setHovered(id);

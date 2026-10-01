@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, CylinderGeometry, DoubleSide, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial, RingGeometry,
+  AdditiveBlending, Color, CylinderGeometry, DoubleSide, Group, IcosahedronGeometry, Mesh, MeshBasicMaterial, RingGeometry,
   SphereGeometry, Sprite, SpriteMaterial, TorusGeometry,
 } from 'three';
 import { Tracker, canvasTex, makeSky, particles, rng, standard, type WorldDef } from './common';
@@ -20,10 +20,10 @@ export const space: WorldDef = {
       const sp = new Sprite(m); sp.position.set(x, y, z); sp.scale.set(s, s, 1); g.add(sp);
     }
     const planetTex = canvasTex(256, 128, (c) => { const r = rng(9); for (let y = 0; y < 128; y += 4) { c.fillStyle = `hsl(${18 + r() * 28} ${40 + r() * 30}% ${52 + r() * 22}%)`; c.fillRect(0, y, 256, 4); } }, tr);
-    const planet = tr.mesh(new SphereGeometry(7, 48, 32), standard('#ffffff', 0.9, { map: planetTex })); planet.position.set(-16, 7, -38); g.add(planet);
+    const planet = tr.mesh(new SphereGeometry(7, 48, 32), standard('#ffffff', 0.9, { map: planetTex, emissive: new Color('#ffffff'), emissiveMap: planetTex, emissiveIntensity: 0.55 })); planet.position.set(-16, 7, -38); g.add(planet);
     const ring = tr.mesh(new RingGeometry(9.5, 14, 80), tr.add(new MeshBasicMaterial({ color: '#e7c9a0', transparent: true, opacity: 0.45, side: DoubleSide, fog: false })));
     ring.position.copy(planet.position); ring.rotation.set(1.25, 0.2, 0.1); g.add(ring);
-    const moon = tr.mesh(new SphereGeometry(1.6, 28, 20), standard('#cfd2dc', 1)); moon.position.set(14, 8, -28); g.add(moon);
+    const moon = tr.mesh(new SphereGeometry(1.6, 28, 20), standard('#cfd2dc', 1, { emissive: new Color('#9aa0b0'), emissiveIntensity: 0.5 })); moon.position.set(14, 8, -28); g.add(moon);
     const rockGeo = tr.add(new IcosahedronGeometry(1, 1)), rockMat = tr.add(standard('#7b7e8c', 1));
     const rocks: Mesh[] = [], rr = rng(4);
     for (let i = 0; i < 9; i++) { const m = new Mesh(rockGeo, rockMat); const s = 0.2 + rr() * 0.7; m.scale.set(s, s * (0.7 + rr() * 0.5), s); m.position.set((rr() - 0.5) * 18, 0.5 + rr() * 6, -4 - rr() * 14); m.castShadow = true; g.add(m); rocks.push(m); }

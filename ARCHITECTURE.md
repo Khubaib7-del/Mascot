@@ -2,83 +2,104 @@
 
 ```
 src/
-  app/        router (hash), App shell, error boundary
-  ui/         React chrome: pages, MascotViewer, controls, styles
-  mascot/     data model (types), config (defaults/sanitise/encode), registry, definitions/*
-  engine/     rendering & animation – no React imports
-    stage.ts            renderer, lights, env, input, loop, quality, disposal
-    mascotInstance.ts   definition + config → scene graph
-    fur.ts              shell‑fur material patch
-    surfaces.ts         surface presets (smooth/plush/fuzzy/furry/synthetic/metallic)
-    environments.ts     lighting/IBL/backdrop data + PMREM baker
-    camera.ts           camera rig + presets
-    quality.ts          tiers, detection
-    animation/          animator, clips, expressions
-  thumb.ts    entry for thumbnail rendering (thumb.html)
-scripts/      render-thumbnails.mjs, contact-sheet.mjs
+  app/            hash router, App shell, error boundary
+  ui/             React chrome only: pages, MascotViewer, controls, playground panel, styles
+    playground/   Playground page, Panel (10 sections), presets
+  mascot/         data model (types), config (defaults / sanitise / encode), registry, definitions/*
+  engine/         rendering + animation — no React imports
+    stage.ts            renderer, lights, input, loop, quality transactions, transitions, recovery
+    mascotInstance.ts   definition + config → scene graph; attach nodes; props; halo; secondary motion
+    fur.ts              shell-fur material patch + procedural markings
+    surfaces.ts         14 surface presets
+    lighting.ts         11 lighting presets + baked IBL
+    camera.ts           camera rig (orbit, zoom, pan, 11 presets, push-in for transitions)
+    quality.ts          tiers, device detection
+    models.ts           ~40 original prop/charm models built from primitives
+    accessories.ts      outfit pieces with attach points and swing definitions
+    charms.ts           keychain rail
+    agent.ts            29 agent states (expression, clip, props, status halo)
+    animation/          animator, clips, expressions, movement
+    worlds/             common helpers + outdoor / indoor / space worlds
+  thumb.ts        deterministic still entry (thumb.html) for thumbnails and QA
+scripts/          render-thumbnails, shots, pose-sheet, verify-ui, contact-sheet, strip
 ```
 
-## Rendering layer
-`Stage` owns one `WebGLRenderer` per viewer (hero, customiser, playground are separate canvases; only visible ones render). It has no knowledge of React or of any particular mascot. Public API: `setMascot`, `applyConfig`, `play/stopClip`, `setCameraPreset`, `setQuality`, `capture`, `freeze`, `dispose`. Events (`frame`, `tier`, `clip`) flow out through a callback.
-
-## Scene management
-Scene = key + rim directional lights, hemisphere fill, PMREM environment, a `ShadowMaterial` ground, a contact‑shadow blob, and one `MascotInstance`. Replacing a mascot disposes the old instance first.
-
-## Mascot system
-`MascotDefinition` (see `src/mascot/types.ts`) is pure data:
+## Composable character
 
 ```
-Mascot → metadata (name, family, tagline, status)
-       → source (procedural | glb{url, draco, meshopt, ktx2})
-       → parts[] (shape, size, stretch, parent, role, finish, colour slot, furry, furMask, accessory)
-       → palette + customization (colour controls, allowed surfaces, accessories)
-       → animations[] / environments[]
-       → framing (height, centre) – drives all camera presets
-       → license + thumbnail + swatch
+Character (MascotDefinition: pure data)
+ ├── Body        parts[] — shape, stretch, parent, role, finish, colour slot
+ ├── Face        eyes (sclera/iris/pupil/shine), mouth, brows, cheeks — roles driven by Params
+ ├── Fur         FurProfile (length, density, fluff, softness, gravity, variation) + per-part multipliers + markings
+ ├── Material    config.surface → SurfaceDef (fur spec + PBR constants)
+ ├── Color       config.colors by slot (body, markings, eye, eye2, cheek, earInner, pad, + outfit slots)
+ ├── Outfit      config.accessories → attach points on the body
+ ├── Charms      config.charms (≤ 6) → charmRail attach point
+ ├── Expression  config.expression → ExpressionValues (14)
+ ├── Agent state config.agent → expression + clip loop + props + halo
+ ├── Movement    Animator.playMovement(MovementDef) — path + gait, applied to the root
+ ├── Props       placed from the agent state: hand mounts or table/world positions
+ └── World       config.world + config.lighting
 ```
-`MascotInstance` walks `parts`, builds geometry (non‑uniform stretch baked, normals transformed), picks a material by `finish`, and registers **roles** (`head`, `earL`, `eyeL`, `mouth`, …) that the animator drives. Nothing in `engine/` mentions Moss, Pip or Orbit. To add a mascot: write a definition (or, for GLB, implement the loader branch and map node names to roles) and add it to `registry.ts`; run `npm run thumbs`.
 
-## Asset system
-Current: procedural prototypes. Planned: `source.type === 'glb'` → `GLTFLoader` + `MeshoptDecoder` + `KTX2Loader`, then node‑name → role/accessory/slot mapping from a sidecar JSON in the definition. Pipeline in RESEARCH.md §6. Per‑mascot licence is in the definition and surfaced on cards.
+Everything above is resolved by `MascotInstance.applyConfig(config)`. `config` is the single source of truth and is what the URL, saved looks and thumbnails serialise.
 
-## Material system
-`finish` selects a fixed material (matte, gloss, eye, iris, glow, inner, highlight) or `surface`, which follows the user‑selected `SurfaceDef`. Surfaces with a `fur` spec enable the shell mesh for `furry` parts; others change PBR constants only. Colours come from slots (`body`, `accent`, `eye`, …) so customisation is data‑driven.
+## Rendering lifecycle and the quality bug
 
-## Animation system
-`Animator.update` builds target channel values (`role.prop`) every frame from layers:
-1. **Clips** (data in `clips.ts`: offset + sin/hop/noise tracks, ease in/out weight).
-2. **Idle:** breathing, weight shift, tail/antenna sway, head drift, ear flick, blink (double‑blink 18 %), eye saccades.
-3. **Gaze:** pointer relative to the *head’s screen position*; eyes lead, head follows at ~⅓ strength.
-4. **Hover/click:** ears perk and face brightens; click triggers `poke`.
-5. **Expression:** `EXPRESSIONS` values smoothed then mapped to eye/mouth/brow/cheek/ear channels.
-Channels go through **springs** (role‑specific stiffness/damping; ears/tail under‑damped) – this gives follow‑through and settling. Blink is applied after springs so it stays crisp. Missing roles are silently skipped, so mascots without brows/ears work unchanged. Reduced motion scales all of this down.
+The earlier build recreated the whole renderer when quality changed; a failure left a blank canvas. The current rule: **the renderer is created once per viewer and never for settings.** Every change is staged:
 
-## Customisation system
-`MascotConfig` = colours by slot, surface, accessories, expression, environment, camera. `defaultConfig`, `sanitizeConfig` (validates against the definition) and `encodeConfig/decodeConfig` (URL sharing) live in `mascot/config.ts`. The playground UI is generated from `definition.customization`.
+```
+Current working scene ──▶ attempt change ──▶ render one frame + check GL error / context
+                                  │ success ─▶ commit
+                                  └ failure ─▶ restore previous state, try next lower tier
+                                               ultra → high → medium → low → safe mode (skin, no shader fur)
+```
 
-## Camera system
-Spherical rig; presets are in units of mascot height; exponential smoothing; drag/pinch/wheel/keyboard; hero mode springs back after 3 s; shortest‑path azimuth; portrait pull‑back; idle drift and pointer parallax (off for reduced motion).
+- `Stage.setQuality(tier)` → `tryTier`: applies DPR, shadows, shadow-map size, fur layer scale, rebuilds the world for the tier (build-then-swap: the old world stays until the new one exists), renders a frame, checks `getError()` and context state.
+- `swapWorld` / `buildWorld`: a world that throws never replaces the current one.
+- `renderer.debug.onShaderError` and `try/catch` around every frame feed `onFailure`: lower tier → safe mode → drop the world → keep the character.
+- `webglcontextlost` is prevented and the loop pauses; `webglcontextrestored` rebuilds the PMREM cache and resumes. The poster is shown meanwhile.
+- MSAA is fixed at context creation; if the preferred context fails, creation is retried without it.
+- Progressive loading (never an empty scene): skin-only character on a veil → veil clears to reveal the world → fur layers ramp up over ~1 s.
+- Adaptive downgrade (sustained >38 ms frames) uses the same transactional path.
 
-## Environment system
-Each `EnvironmentDef` has softbox panels (baked to PMREM on first use, cached), key/rim/fill lights, exposure, shadow strength, fur rim tint and a CSS backdrop gradient. Switching dims IBL, swaps, and restores; the viewer cross‑fades the CSS backdrop.
+Verified in `scripts/verify-ui.mjs`: user tier changes, a forced `getError` failure during a tier change, and a forced context loss/restore each leave the character on screen.
 
-## UI layer
-React pages (Home, Explore, Playground) and a single `MascotViewer` that lazily creates a `Stage` when scrolled into view, shows the poster until the first frame, and exposes loading / unsupported / error states with retry. Playground controls are real buttons/radiogroups.
+## Scene
 
-## State management
-No global store. Playground config is local React state mirrored into the URL (`#/mascot/:id?c=…`, `replaceState`); saved looks in `localStorage`. Frame‑rate state never touches React.
+One `Scene`: key + rim directional lights, hemisphere fill, PMREM environment, a world group, the mascot root(s), a contact-shadow blob and a camera-attached **veil** (a fog/cloud shader quad). `Stage.travel()` raises the veil while the camera pushes in, swaps the world/character at the peak, then clears the veil and plays an entrance — used on the landing page and for world changes in the playground.
 
-## Performance layer
-Tiers (`quality.ts`), detection, adaptive downgrade, visibility pausing, DPR caps, shell scaling, 30 fps cap (LOW). Shell fur = one instanced draw per furry part.
+Worlds (`engine/worlds`) are built from real geometry, instanced meshes, canvas textures, shader particles (snow, rain, fireflies, stars, bokeh) and a shared sky-dome shader. Each exposes `update`, `applyLighting`, `dispose`; a `Tracker` records every allocation so disposal is exhaustive. Lighting is independent of the world: a preset drives rig, exposure, IBL, sky, fog and sun colours.
 
-## Asset loading & error handling
-Posters first; engine chunk split (`three`); viewer failure states: *unsupported* (no WebGL 2 → poster + message), *error* (retry button). Route errors are caught by an error boundary. Unknown mascot ids show a 404.
+## Character system
 
-## Disposal & lifecycle
-`MascotViewer` effect cleanup → `Stage.dispose()` → instance dispose (geometries, materials, shell meshes) → PMREM targets → shadow map → blob texture → observers → input listeners → `forceContextLoss()`. Verified by navigating between routes in the headless run (no console errors).
+- **Roles** (`head`, `earL`, `eyeL`, `irisL`, `armL`, `legBL`, `tail`, `topknot`, …) are the contract between data and animation. A part declares a role; the animator drives it; missing roles are skipped. `roleAliases` lets a quadruped reuse biped clips (armL → legFL).
+- **Face**: `Params` (eye size, iris, pupil, spacing, highlight, squint, heterochromia, head/body size) scale stored base transforms (`p0`, `s0`) so slider changes never compound.
+- **Fur**: surface preset × character `FurProfile` × user sliders × per-part multiplier → shell uniforms. Wool uses *lock clumping* (strands lean in groups via a layer-dependent lattice shift). Markings (spots, rosettes, patches) are a one-cell-per-lattice procedural mask shared by the skin material and every shell.
 
-## Future store architecture
-Keep the definition as the contract. A catalog endpoint returns definitions + CDN GLB URLs + entitlement; the registry becomes async. Licence fields already exist; add `pricing`, `packs`, `creator`. Embeddable mascot = `Stage` + a definition + a config in an iframe/web component. No backend, auth or payments exist in this build.
+## Animation
 
-## Testing notes
-See README for commands. Automated: `tsc`, `vite build`. Visual: headless Chrome with SwiftShader (needs `VK_ICD_FILENAMES` – handled in `scripts/render-thumbnails.mjs`).
+`Animator.update` builds target channel values (`role.prop`) from layers — idle (breath, weight shift, saccades, ear flicks, blink), gait (walk/run/hop/fly/float), expression, a persistent **agent-state loop**, a one-shot clip — then drives them through springs (ears and tail under-damped). Movement paths are applied directly to the root so entrances don't lag. User scalars (motion energy, speed, blink speed) are inputs; reduced motion scales idle to 30 %, removes blinks/flicks/saccades and snaps camera moves.
+
+## Accessories, charms, props
+
+- Each mascot lists **attach points** (`head`, `face`, `neck`, `chest`, `back`, `handR/L`, `charmRail`) as a parent part + offset + scale. An accessory declares the points it needs; it is hidden for bodies that lack them.
+- `SwingDef` describes secondary motion: a pivot, the reference point whose world velocity drives it, gain, stiffness, damping, lag. Scarf tails are a three-segment chain with increasing lag; the backpack bounces; badges and charms are pendulums with an ambient sway so nothing freezes.
+- Charms hang from the rail with chained links. Props (laptop on a table, book at the chest, magnifier in hand) come from the active agent state and are mounted to hands or world positions scaled by the mascot's height.
+- Models are original primitives. Anything that echoes a real mark is a generic symbol (commit-graph, arc-reactor-style emblem, shield-and-star), never a logo.
+
+## State
+
+No global store. The playground keeps one `MascotConfig` in React state, mirrored to the URL via `replaceState`; saved looks live in `localStorage`. Frame-rate state never touches React (FPS is sampled every ~700 ms).
+
+## Performance
+
+Tiers (`quality.ts`): DPR cap, fur layer scale, shadows, shadow-map size, MSAA, 30 fps cap on low. Render only while visible; one live canvas per page region; instancing for trees, grass, buildings, keys; shell fur = one instanced draw per part; world particle counts scale with tier. Fur geometry uses 60 % segments. Posters (WebP renders) show first.
+
+## Asset pipeline
+
+Unchanged intent (RESEARCH.md §6): DCC → GLB → glTF-Transform (Meshopt, KTX2) → role/attach mapping sidecar. `source: { type: 'glb' }` is typed but not implemented.
+
+## Future store
+
+The definition is the contract: a catalog returns definitions + CDN URLs + entitlements; the registry becomes async. Licence fields exist; `pricing`, `packs`, `creator` would be added. An embeddable agent = `Stage` + definition + config in an iframe/web component.

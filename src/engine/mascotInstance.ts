@@ -1,6 +1,6 @@
 import {
   BufferGeometry, Color, Euler, Group, InstancedMesh, IUniform, Material, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
-  MeshStandardMaterial, Object3D, SphereGeometry, Vector3,
+  MeshStandardMaterial, Object3D, SphereGeometry, TorusGeometry, Vector3,
 } from 'three';
 import type { AttachPoint, MascotConfig, MascotDefinition, Params, PartDef, Role } from '../mascot/types';
 import { DEFAULT_PARAMS } from '../mascot/types';
@@ -334,7 +334,11 @@ export class MascotInstance {
     const group = new Group();
     group.position.set(0, 1.18, 0);
     const beads: Mesh[] = [], mats: MeshBasicMaterial[] = [];
-    const geo = this.tr.add(new SphereGeometry(0.075, 16, 12));
+    const geo = this.tr.add(new SphereGeometry(0.06, 16, 12));
+    const ringMat = this.tr.add(new MeshBasicMaterial({ color: '#ffffff', toneMapped: false, transparent: true, opacity: 0.3, depthWrite: false }));
+    const ring = new Mesh(this.tr.add(new TorusGeometry(0.46, 0.012, 6, 56)), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.scale.set(1, 0.55, 1);
+    group.add(ring); mats.push(ringMat);
     for (let i = 0; i < 3; i++) {
       const mat = this.tr.add(new MeshBasicMaterial({ color: '#ffffff', toneMapped: false, transparent: true }));
       const m = new Mesh(geo, mat); m.scale.setScalar(1 - i * 0.16); group.add(m); beads.push(m); mats.push(mat);
@@ -374,7 +378,7 @@ export class MascotInstance {
       if (st.mode === 'flash') o = 0.35 + 0.65 * Math.abs(Math.sin(t * st.speed * 2.5));
       if (st.mode === 'shake') h.group.position.x = Math.sin(t * 38) * 0.03;
       else h.group.position.x = 0;
-      h.mats.forEach((m) => { m.opacity = o; });
+      h.mats.forEach((m, i) => { m.opacity = i === 0 ? o * 0.3 : o; });
     }
     this.stepSwings(Math.min(dt, 1 / 30));
   }

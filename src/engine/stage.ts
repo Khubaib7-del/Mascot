@@ -196,6 +196,8 @@ export class Stage {
   stopClip() { this.instance?.animator.stop(); }
   get playing() { return this.instance?.animator.playing ?? null; }
   get qualityTier() { return this.tier; }
+  /** True while a cinematic transition is running (tests and UI can wait on it). */
+  get busy() { return !!this.transition || this.loadT < 2; }
   get isSafeMode() { return this.instance?.isSafe ?? false; }
   stats() { return { ...(this.instance?.stats() ?? { draws: 0, tris: 0 }), tier: this.tier, dpr: this.renderer.getPixelRatio(), calls: this.renderer.info.render.calls, world: this.worldId }; }
 

@@ -9,7 +9,7 @@ const ear: PartDef = {
 const arm: PartDef = {
   id: 'armL', parent: 'body', role: 'armL', shape: 'capsule', size: [0.09, 0.2],
   position: [0.4, 0.3, 0.05], rotation: [0, 0, 0.18], offset: [0, -0.18, 0], finish: 'surface', slot: 'body', furry: true,
-  markings: { slot: 'marking', kind: 'spots', scale: 11, coverage: 0.3, size: 0.32, seed: 3 },
+  markings: { slot: 'marking', kind: 'spots', scale: 11, coverage: 0.5, size: 0.38, seed: 3 },
 };
 const foot: PartDef = {
   id: 'footL', parent: 'root', role: 'footL', shape: 'sphere', size: [1], stretch: [0.17, 0.11, 0.24],
@@ -33,7 +33,7 @@ export const lumi: MascotDefinition = {
   license: { holder: 'Mascot project', terms: 'Original design, project-owned', assets: 'Procedurally generated — no third-party assets' },
   thumbnail: '/thumbs/lumi.webp',
   palette: { body: '#f1ece3', accent: '#f8f4ec', eye: '#47c1d1', eye2: '#47c1d1', cheek: '#f2b0a8', brow: '#6a6a72', earInner: '#efb7ac', pad: '#5a5560', nose: '#8d6a66', marking: '#8c919b' },
-  defaults: { surface: 'shortFur', expression: 'happy', lighting: 'indoor', world: 'devDesk', camera: 'hero' },
+  defaults: { surface: 'shortFur', expression: 'happy', lighting: 'soft', world: 'devDesk', camera: 'hero' },
   framing: { height: 2.1, center: [0, 0.98, 0] },
   fur: { length: 0.85, density: 1.25, fluff: 0.35, softness: 0.5, gravity: 0.8, variation: 0.45 },
   face: { eyeSize: 1, irisSize: 1, pupilSize: 1, eyeSpacing: 1, highlight: 1 },
@@ -51,12 +51,12 @@ export const lumi: MascotDefinition = {
   parts: [
     {
       id: 'body', parent: 'root', role: 'body', shape: 'sphere', size: [1], stretch: [0.4, 0.5, 0.38], position: [0, 0.64, 0], finish: 'surface', slot: 'body', furry: true, hit: true,
-      markings: { slot: 'marking', kind: 'spots', scale: 8, coverage: 0.32, size: 0.34, seed: 1 },
+      markings: { slot: 'marking', kind: 'spots', scale: 8, coverage: 0.55, size: 0.42, seed: 1 },
     },
     {
       id: 'head', parent: 'root', role: 'head', shape: 'sphere', size: [1], stretch: [0.53, 0.46, 0.48], position: [0, 1.06, 0], offset: [0, 0.3, 0.02],
       finish: 'surface', slot: 'body', furry: true, hit: true, furMask: { center: [0, -0.12, 0.4], radii: [0.38, 0.34, 0.28] },
-      markings: { slot: 'marking', kind: 'spots', scale: 10, coverage: 0.26, size: 0.3, seed: 5 },
+      markings: { slot: 'marking', kind: 'spots', scale: 9, coverage: 0.45, size: 0.4, seed: 5 },
     },
     { id: 'muzzle', parent: 'head', shape: 'sphere', size: [1], stretch: [0.19, 0.14, 0.13], position: [0, 0.17, 0.42], finish: 'surface', slot: 'accent', furry: true, fur: { length: 0.5 } },
     ear, mirror(ear, 'earR', 'earR'),

@@ -5,17 +5,17 @@ interface Pose { az: number; pol: number; dist: number; ty: number; fov: number 
 
 /** Distances and heights are expressed in units of mascot height so presets work for any mascot. */
 export const CAMERA_PRESETS: Record<CameraPresetId, Pose & { label: string }> = {
-  hero: { label: 'Hero', az: 0.38, pol: 1.43, dist: 2.35, ty: 0.02, fov: 28 },
-  portrait: { label: 'Portrait', az: 0.18, pol: 1.46, dist: 1.2, ty: 0.28, fov: 26 },
-  threeQuarter: { label: 'Three-quarter', az: 0.85, pol: 1.4, dist: 2.2, ty: 0.04, fov: 28 },
-  closeUp: { label: 'Close-up', az: -0.12, pol: 1.5, dist: 0.8, ty: 0.3, fov: 24 },
-  fullBody: { label: 'Full body', az: 0, pol: 1.52, dist: 3.0, ty: -0.02, fov: 30 },
-  cinematic: { label: 'Cinematic', az: -0.6, pol: 1.68, dist: 2.0, ty: 0.12, fov: 22 },
-  inspection: { label: 'Inspection', az: 0.9, pol: 1.35, dist: 1.9, ty: 0.06, fov: 32 },
-  side: { label: 'Side', az: Math.PI / 2, pol: 1.5, dist: 2.4, ty: 0.02, fov: 28 },
-  rear: { label: 'Rear', az: Math.PI, pol: 1.45, dist: 2.4, ty: 0.02, fov: 28 },
-  lowAngle: { label: 'Low angle', az: 0.3, pol: 1.78, dist: 2.1, ty: -0.05, fov: 30 },
-  highAngle: { label: 'High angle', az: 0.3, pol: 0.95, dist: 2.3, ty: 0.02, fov: 28 },
+  hero: { label: 'Hero', az: 0.38, pol: 1.43, dist: 3.1, ty: 0.02, fov: 28 },
+  portrait: { label: 'Portrait', az: 0.18, pol: 1.46, dist: 1.7, ty: 0.28, fov: 26 },
+  threeQuarter: { label: 'Three-quarter', az: 0.85, pol: 1.4, dist: 2.9, ty: 0.04, fov: 28 },
+  closeUp: { label: 'Close-up', az: -0.12, pol: 1.5, dist: 1.05, ty: 0.3, fov: 24 },
+  fullBody: { label: 'Full body', az: 0, pol: 1.52, dist: 3.9, ty: -0.02, fov: 30 },
+  cinematic: { label: 'Cinematic', az: -0.6, pol: 1.68, dist: 2.7, ty: 0.12, fov: 22 },
+  inspection: { label: 'Inspection', az: 0.9, pol: 1.35, dist: 2.5, ty: 0.06, fov: 32 },
+  side: { label: 'Side', az: Math.PI / 2, pol: 1.5, dist: 3.2, ty: 0.02, fov: 28 },
+  rear: { label: 'Rear', az: Math.PI, pol: 1.45, dist: 3.2, ty: 0.02, fov: 28 },
+  lowAngle: { label: 'Low angle', az: 0.3, pol: 1.78, dist: 2.8, ty: -0.05, fov: 30 },
+  highAngle: { label: 'High angle', az: 0.3, pol: 0.95, dist: 3.0, ty: 0.02, fov: 28 },
 };
 
 export interface RigOptions { zoom: boolean; orbit: boolean; pan: boolean; returnToPreset: boolean; parallax: number }

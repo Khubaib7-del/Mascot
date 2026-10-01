@@ -55,7 +55,12 @@ export function Playground({ def, route }: { def: MascotDefinition; route: Route
       }
     }
   }, []);
-  const onStage = useCallback((s: Stage | null) => { stageRef.current = s; setStage(s); if (s) setLiveTier(s.qualityTier); }, []);
+  const onStage = useCallback((s: Stage | null) => {
+    stageRef.current = s; setStage(s);
+    if (s) setLiveTier(s.qualityTier);
+    // QA hook (?debug): lets tests force failures and inspect the live stage.
+    if (new URLSearchParams(location.hash.split('?')[1] ?? '').has('debug') || import.meta.env.DEV) (window as unknown as { __stage?: Stage | null }).__stage = s;
+  }, []);
 
   const share = async () => {
     const url = `${location.origin}${location.pathname}#/mascot/${def.id}?c=${encodeConfig(config)}`;
@@ -92,7 +97,7 @@ export function Playground({ def, route }: { def: MascotDefinition; route: Route
       <div className="pg-title">
         <p className="eyebrow">{def.species}</p>
         <h1>{def.name}</h1>
-        <p className="pg-state"><i style={{ background: st.status.color }} aria-hidden />{st.label}<span> — {st.status.text}</span></p>
+        <p className="pg-state"><i style={{ background: st.status.color }} aria-hidden />{st.label}{st.status.text !== st.label && <span> — {st.status.text}</span>}</p>
         <a className="next" href={`#/mascot/${next.id}`}>Next: {next.name} →</a>
       </div>
 

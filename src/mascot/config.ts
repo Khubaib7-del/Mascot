@@ -1,36 +1,72 @@
-import type { MascotConfig, MascotDefinition } from './types';
+import { DEFAULT_PARAMS, type MascotConfig, type MascotDefinition, type Params } from './types';
+import { ACCESSORIES } from '../engine/accessories';
+import { CHARMS } from '../engine/charms';
+import { LIGHTING_IDS } from '../engine/lighting';
+import { WORLD_IDS } from '../engine/worlds';
+import { AGENT_STATES } from '../engine/agent';
+import { EXPRESSIONS } from '../engine/animation/expressions';
+import { CAMERA_PRESETS } from '../engine/camera';
+import { SURFACES } from '../engine/surfaces';
+import { ACCESSORY_COLORS } from '../engine/accessories';
+
+export const MAX_CHARMS = 6;
 
 export function defaultConfig(def: MascotDefinition): MascotConfig {
   return {
-    colors: { ...def.palette },
+    colors: { ...ACCESSORY_COLORS, ...def.palette },
     surface: def.defaults.surface,
     accessories: [],
+    charms: [],
     expression: def.defaults.expression,
-    environment: def.defaults.environment,
+    lighting: def.defaults.lighting,
+    world: def.defaults.world,
     camera: def.defaults.camera,
+    agent: 'idle',
+    params: { ...DEFAULT_PARAMS },
   };
 }
+
+/** The look a collection card shows: the character's signature outfit, state and expression. */
+export function signatureConfig(def: MascotDefinition): MascotConfig {
+  return {
+    ...defaultConfig(def),
+    accessories: [def.signature.accessory],
+    charms: def.signature.charms ?? [],
+    expression: def.signature.expression,
+    agent: def.signature.state,
+  };
+}
+
+const hex = /^#[0-9a-f]{6}$/i;
+const inList = <T extends string>(v: unknown, ok: readonly T[]): v is T => typeof v === 'string' && (ok as readonly string[]).includes(v);
 
 /** Merges untrusted input (URL, localStorage) into a valid config for this mascot. */
 export function sanitizeConfig(def: MascotDefinition, input: unknown): MascotConfig {
   const base = defaultConfig(def);
   if (!input || typeof input !== 'object') return base;
   const c = input as Partial<MascotConfig>;
-  const hex = /^#[0-9a-f]{6}$/i;
   if (c.colors && typeof c.colors === 'object') {
-    for (const ctl of def.customization.colors) {
-      const v = (c.colors as Record<string, unknown>)[ctl.slot];
-      if (typeof v === 'string' && hex.test(v)) base.colors[ctl.slot] = v;
+    for (const k of Object.keys(base.colors)) {
+      const v = (c.colors as Record<string, unknown>)[k];
+      if (typeof v === 'string' && hex.test(v)) base.colors[k] = v;
     }
   }
-  if (c.surface && def.customization.surfaces.includes(c.surface)) base.surface = c.surface;
-  if (Array.isArray(c.accessories)) {
-    const ok = new Set(def.customization.accessories.map((a) => a.id));
-    base.accessories = c.accessories.filter((a) => ok.has(a));
+  if (inList(c.surface, def.customization.surfaces)) base.surface = c.surface;
+  const compatible = (id: string) => ACCESSORIES[id]?.attach.every((a) => !!def.attach[a]);
+  if (Array.isArray(c.accessories)) base.accessories = c.accessories.filter((a) => typeof a === 'string' && compatible(a));
+  if (Array.isArray(c.charms)) base.charms = c.charms.filter((a) => typeof a === 'string' && a in CHARMS).slice(0, MAX_CHARMS);
+  if (inList(c.expression, Object.keys(EXPRESSIONS) as never[])) base.expression = c.expression;
+  if (inList(c.lighting, LIGHTING_IDS)) base.lighting = c.lighting;
+  if (inList(c.world, WORLD_IDS)) base.world = c.world;
+  if (inList(c.camera, Object.keys(CAMERA_PRESETS) as never[])) base.camera = c.camera;
+  if (inList(c.agent, Object.keys(AGENT_STATES) as never[])) base.agent = c.agent;
+  if (c.params && typeof c.params === 'object') {
+    for (const k of Object.keys(DEFAULT_PARAMS) as (keyof Params)[]) {
+      const v = (c.params as unknown as Record<string, unknown>)[k];
+      if (typeof v === 'number' && Number.isFinite(v)) base.params[k] = Math.min(4, Math.max(0, v));
+    }
   }
-  if (c.expression) base.expression = c.expression;
-  if (c.environment && def.environments.includes(c.environment)) base.environment = c.environment;
-  if (c.camera) base.camera = c.camera;
+  void SURFACES;
   return base;
 }
 
@@ -40,8 +76,7 @@ export const encodeConfig = (c: MascotConfig) =>
 export function decodeConfig(def: MascotDefinition, s: string | null): MascotConfig | null {
   if (!s) return null;
   try {
-    const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
-    return sanitizeConfig(def, JSON.parse(atob(b64)));
+    return sanitizeConfig(def, JSON.parse(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
   } catch {
     return null;
   }

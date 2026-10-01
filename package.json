@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "thumbs": "node scripts/render-thumbnails.mjs"
+    "thumbs": "node scripts/render-thumbnails.mjs",
+    "qa": "node scripts/verify-ui.mjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",

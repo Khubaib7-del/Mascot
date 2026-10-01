@@ -2,6 +2,8 @@
 
 Status legend: **[verified]** = read from a primary or current source during this project (searches dated 2026‑10‑01) or measured in this repo; **[background]** = established knowledge not re‑checked today; **[assumption]** = reasoned, untested.
 
+> **Revision 2** adds the art‑direction brief (§12–§19). Earlier sections stand; where revision 2 changes a decision, that is stated in §19.
+
 ## 1. Competitive references
 
 What was actually retrieved this week:
@@ -138,3 +140,60 @@ See `ARCHITECTURE.md`. Short version: React for chrome, an imperative `Stage` fo
 6. **Hash routing, static hosting, no backend** – matches “local/static metadata” scope.
 7. **Thumbnails generated, committed, and used as posters** – fast first paint, graceful fallback.
 8. **No payments/accounts** – out of scope; licence & source fields prepared.
+
+---
+
+## 12. Supplied art direction — what the references actually show
+
+Observed directly from the supplied images (**[verified]**, by inspection):
+
+- **Logo reference:** three fat, matte black bean forms in a pinwheel, each with a cream under‑layer offset like a shadow, interlocking around a small triangular gap. Reads as "many pieces, one system". The brief forbids an animal, a letter, a generic ring or star.
+- **Banner:** left third is a blurred developer desk (monitor, plant, soft purple bokeh); right two thirds is a pastel alpine sky — snowy peak, a floating castle island, clouds — with the three characters seated on a mossy stone ledge. Type is a clean geometric sans with a lilac‑to‑blue gradient on the second headline line. **Composition lesson:** one *continuous* world that moves from workspace to landscape, with warm key light and cool fill.
+- **Polar bear:** blue irises with a dark limbus and a large catch‑light; chunky round ears with pink inner; blush; knitted scarf with a pattern; paws with pad prints. **Alpaca:** big brown eyes with lashes, a curly wool topknot, long neck, dark hooves. **Snow leopard:** cream coat, grey spots on body and **rosettes on the tail**, whiskers, ice‑blue eyes.
+- **What makes them feel expensive (observation → inference):** soft silhouette from fur *length*, eyes with a strong specular highlight and a coloured iris ring, warm key against cool rim light, and accessories that sit in the fur (scarf wrapping, tag hanging) rather than floating. These became the priorities for the eye construction, `rim` term in the fur shader, per‑environment key/rim colours and attach‑point accessories.
+- **Not supplied:** `mascot-hero-background.png`. The hero was derived from the banner's composition instead. This is recorded here and in the README.
+
+## 13. Fur per animal (revision of §4)
+
+The shell approach is unchanged; what changed is that *character* now parameterises it:
+
+| Character | Surface | Profile (length / density / fluff / softness) | Mechanism that differs |
+|---|---|---|---|
+| Polar bear | short fur | 1.0 / 1.0 / 0.5 / 0.65 | even short shells, soft tips, pale muzzle with half‑length fur |
+| Alpaca | wool | 1.25 / 0.8 / 0.85 / 0.5 | **lock clumping**: strand lookups shift with layer height per coarse cell, so groups of strands lean together; 2.2× longer, sparser topknot |
+| Snow leopard | short fur | 0.85 / 1.25 / 0.35 / 0.5 | denser, tighter coat; **procedural markings** (spots, rosettes, patches) applied identically to skin and to every shell so spots don't swim |
+
+User controls (length, density, softness, fluffiness, direction, variation, roughness, sheen) are multipliers on the character profile and the surface preset. **Directional fur** is a lean term on upper shells, not a groom — it reads as "windswept", not combed.
+
+**Candid limits [measured/observed]:** under very bright snowy light the strand definition washes out; at LOW (30 % layers) fur looks speckled; shells have no self‑shadowing; there is no strand geometry. WebGPU compute strands remain the upgrade path (§3).
+
+## 14. Accessory and secondary‑motion systems
+
+Options considered: (a) baked into the mesh per variant, (b) rigid parenting to bones, (c) **attach points + data‑defined spring chains**, (d) full cloth/XPBD. **(c) chosen.** It costs one spring per pendulum, needs no cloth solver, supports "a scarf follows with a slight lag and settles", and generalises to charms. (d) was rejected for v1: stability and CPU cost on mobile, and the visible gain over a lagged three‑segment chain is small at this camera distance **[assumption]**. Velocity is taken from the world motion of the attach node, which means head turns, hops, entrances and walking all excite the same system.
+
+## 15. Agent state systems
+
+A state is *data*: expression, a looping clip, props (hand or world mount), a status halo (colour, motion mode, text). Rejected: one baked animation per state × character (combinatorial). Chosen: clips written against **roles**, with `roleAliases` so a quadruped reuses biped clips. The halo carries state redundantly in motion **and text** so colour is never the only signal (accessibility). Three beads orbiting a ring echo the platform mark.
+
+## 16. Worlds
+
+Procedural worlds avoid HDRI/asset licensing and ship at ~0 KB. Techniques: shared sky‑dome shader (gradient, sun glow, stars), exp² fog tied to lighting, instanced forests/cities, canvas‑painted windows and code, shader particles (snow, rain, fireflies, stars), sprite cloud seas, low‑poly peaks with vertex colours. **Limits:** no water reflections (the sea is a shader), no real volumetric light (shafts are additive cards), no reflections on the wet city floor. Large vehicles are limited to an aeroplane wing/fuselage and a rocket.
+
+## 17. Renderer, WebGPU and the quality bug (revision of §3)
+
+Re‑evaluated against the brief ("consider WebGPU where useful, keep WebGL fallback"): **still WebGL 2.** The work added this revision (instanced shells, particles, sky shaders) is fragment/draw‑call bound, not compute bound; `WebGPURenderer` would force a TSL rewrite of the fur and sky shaders for no measured gain, and its fallback packaging is still changing upstream. The engine boundary (`Stage` / `MascotInstance` / `fur.ts` / `worlds/*`) keeps a later port local. **Where WebGPU would pay:** compute‑driven strand hair and cloth.
+
+The blank‑render bug is a *lifecycle* defect: settings were applied by tearing down and recreating the renderer, with no last‑known‑good. The fix is structural (ARCHITECTURE.md → Rendering lifecycle): one renderer per viewer; every quality/world change is build → validate → commit with rollback and a tier ladder; context loss is handled; MSAA creation retries without MSAA. **Verified** by forced‑failure tests (`scripts/verify-ui.mjs`): results in `MASCOT_QUALITY_CHECKLIST.md`.
+
+## 18. Brand mark
+
+Process (**[verified]** by rendering at 380 px, 32 px and 16 px): (1) a ring of three bulbs — rejected, reads as a share icon; (2) bulbs on a ring with weave gaps — rejected, reads as "people"; (3) **three tapered bean forms in a trefoil, each bulb sitting over the previous tail, cream shadow underlayer** — adopted. It holds as a tile favicon at 16 px (inverted: ivory beans on ink). Three bulb sizes hint at three personalities. It shares no geometry with any known mark that I am aware of, but **no trademark search was run** — do that before commercial use.
+
+## 19. Decisions changed or added in revision 2
+
+1. **Characters are four bespoke definitions**, not recolours (Floe, Alma, Lumi, Orbit). The generic Moss/Pip prototypes were removed.
+2. **Lighting is separate from the world** (11 presets × 10 worlds), because the brief wants the same scene to look dramatically different.
+3. **One live canvas for the landing page** with a cloud veil for transitions, instead of unrelated sections — the "continuous world" requirement.
+4. **Thumbnails are renders of the real engine** (signature look in its world) — consistent with "references, not flat hero art"; the supplied generated images are used only in the README and as the no‑WebGL poster.
+5. **Collection cards use one live preview, not four** — extra WebGL contexts are the main memory risk on mobile. Cards act as selectors for the live stage; static thumbnails are the fallback.
+6. **Typography:** Bricolage Grotesque (display), Inter (UI), DSEG7 (seven‑segment) *only* for numeric readouts — as the brief allows.

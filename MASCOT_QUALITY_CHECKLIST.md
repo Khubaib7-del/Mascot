@@ -40,3 +40,11 @@ Run after every major visual change. Tooling: `node scripts/shots.mjs '<jobs>'` 
 
 ## Last pass
 See the section appended by the final QA run below.
+
+### Pass 1 (headless Chrome, SwiftShader software GL, `quality=low` unless noted) — `npm run qa`
+15/15 automated checks passed: landing hero and all four scroll chapters keep a character on screen; splash dismisses; playground renders; world switch; quality High and Ultra applied in place; **forced GL error during a tier change → fallback ladder (ultra → medium) with the character still on screen**; **WebGL context loss + restore recovers the scene**; unknown route shows 404; mobile (390×844) and reduced-motion playgrounds render.
+
+Found and fixed during the pass: playground camera too tight in landscape; status halo beads read as stray dots (now a ring); Lumi's coat read tan under warm light (default lighting → soft, denser markings); Orbit's planet rendered black at night (emissive map); pupil/highlight spheres built at unit scale; stale-handle GL warnings when tearing down after a context restore.
+
+Not verified (no GPU here): real frame rates, thermal behaviour, real-device DPR; hover/gaze feel; touch gestures beyond layout; screen-reader pass; the thumbnails were rendered at `high`, not `ultra`.
+Known visual limits: warm sunset light tints white fur orange (intended, but strong); fur looks speckled at the LOW tier; sea, wet streets and light shafts are shader approximations.

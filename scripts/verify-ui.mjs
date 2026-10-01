@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
+import sharp from 'sharp';
 
 const chrome = process.env.CHROME_PATH;
 const icd = `${dirname(realpathSync(chrome))}/vk_swiftshader_icd.json`;
@@ -22,36 +23,41 @@ const watch = (page, tag) => {
   page.on('console', (m) => { if (['error', 'warning'].includes(m.type()) && !/Failed to load resource/.test(m.text())) problems.push(`[${tag}] ${m.type()}: ${m.text().slice(0, 200)}`); });
   page.on('pageerror', (e) => problems.push(`[${tag}] pageerror: ${e.message}`));
 };
-const settle = async (page, extra = 1500) => { await page.waitForFunction(() => !window.__stage || !window.__stage.busy, null, { timeout: 240000 }).catch(() => {}); await page.waitForTimeout(extra); };
 const ready = (page, t = 150000) => page.waitForSelector('.viewer[data-status="ready"]', { timeout: t });
-/** True when the canvas shows a character: enough non-uniform pixels in the middle of the frame. */
-const hasContent = (page) => page.evaluate(() => {
-  const c = document.querySelector('canvas'); const t = document.createElement('canvas'); t.width = 64; t.height = 64;
-  const g = t.getContext('2d'); g.drawImage(c, 0, 0, 64, 64); const d = g.getImageData(0, 0, 64, 64).data; let min = 255, max = 0;
-  for (let i = 0; i < d.length; i += 4) { const l = d[i] + d[i + 1] + d[i + 2]; min = Math.min(min, l); max = Math.max(max, l); }
-  return max - min > 40;
-});
-
+/** True when the composited page shows a character: a WebGL canvas can't be read back with drawImage, so measure a real screenshot. */
+const hasContent = async (page) => {
+  const buf = await page.screenshot();
+  const { width, height } = await sharp(buf).metadata();
+  const crop = await sharp(buf).extract({ left: Math.round(width * 0.3), top: Math.round(height * 0.25), width: Math.round(width * 0.4), height: Math.round(height * 0.5) }).stats();
+  const sd = crop.channels.slice(0, 3).reduce((a, c) => a + c.stdev, 0) / 3;
+  return sd > 14;
+};
+const chapter = async (page, id) => {
+  await page.evaluate((c) => document.querySelector(`[data-chapter="${c}"]`).scrollIntoView({ behavior: 'instant', block: 'center' }), id);
+  await page.waitForFunction((c) => document.querySelector('.world-page').dataset.chapterActive === c, id, { timeout: 60000 });
+  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => !window.__stage.busy, null, { timeout: 300000 }).catch(() => {});
+  await page.evaluate(() => window.__stage.settle()); await page.waitForTimeout(2500);
+};
 try {
   // ---------- desktop landing
   const d = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   watch(d, 'desktop');
   await d.goto(base, { waitUntil: 'commit' });
-  await ready(d); await d.mouse.move(420, 320); await settle(d, 5000);
+  await ready(d); await d.mouse.move(420, 320); await d.waitForTimeout(1500); await d.evaluate(() => window.__stage.settle()); await d.waitForTimeout(3000);
   await d.screenshot({ path: '.scratch/qa/home-1-hero.png' });
   ok('landing hero renders a live canvas', await hasContent(d));
   const h = await d.evaluate(() => document.querySelector('.splash')?.classList.contains('gone'));
   ok('splash dismissed after first frame', !!h);
   for (const [i, id] of ['collection', 'craft', 'worlds', 'finale'].entries()) {
-    await d.evaluate((c) => document.querySelector(`[data-chapter="${c}"]`).scrollIntoView({ behavior: 'instant', block: 'center' }), id);
-    await settle(d, 6000);
+    await chapter(d, id);
     await d.screenshot({ path: `.scratch/qa/home-${i + 2}-${id}.png` });
     ok(`chapter ${id} keeps a character on screen`, await hasContent(d));
   }
 
   // ---------- playground
   await d.goto(`${base}#/mascot/floe?debug`, { waitUntil: 'commit' });
-  await ready(d); await d.waitForTimeout(6000);
+  await ready(d); await d.evaluate(() => window.__stage.settle()); await d.waitForTimeout(4000);
   await d.screenshot({ path: '.scratch/qa/pg-1-default.png' });
   ok('playground renders', await hasContent(d));
   for (const [tab, shot] of [['Color', 'pg-2-color'], ['Fur', 'pg-3-fur'], ['Face', 'pg-4-face'], ['Outfit', 'pg-5-outfit'], ['Charms', 'pg-6-charms'], ['Agent', 'pg-7-agent'], ['Motion', 'pg-8-motion'], ['Scene', 'pg-9-scene'], ['Quality', 'pg-10-quality']]) {
@@ -63,7 +69,7 @@ try {
     await d.screenshot({ path: `.scratch/qa/${shot}.png` });
   }
   // world switch via the dock
-  await d.getByRole('radio', { name: 'Space', exact: true }).click(); await d.waitForTimeout(1500); await settle(d, 4000);
+  await d.getByRole('radio', { name: 'Space', exact: true }).click(); await d.waitForTimeout(1500); await d.waitForFunction(() => !window.__stage.busy, null, { timeout: 300000 }).catch(() => {}); await d.evaluate(() => window.__stage.settle()); await d.waitForTimeout(3000);
   await d.screenshot({ path: '.scratch/qa/pg-11-space.png' });
   ok('world switch keeps the character', await hasContent(d));
 
@@ -100,16 +106,16 @@ try {
   // ---------- mobile
   const m = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true });
   watch(m, 'mobile');
-  await m.goto(base, { waitUntil: 'commit' }); await ready(m); await m.waitForTimeout(4000);
+  await m.goto(base, { waitUntil: 'commit' }); await ready(m); await m.evaluate(() => window.__stage?.settle()); await m.waitForTimeout(3500);
   await m.screenshot({ path: '.scratch/qa/m-1-home.png' });
-  await m.goto(`${base}#/mascot/alma`, { waitUntil: 'commit' }); await ready(m); await m.waitForTimeout(5000);
+  await m.goto(`${base}#/mascot/alma`, { waitUntil: 'commit' }); await ready(m); await m.evaluate(() => window.__stage?.settle()); await m.waitForTimeout(4000);
   await m.screenshot({ path: '.scratch/qa/m-2-pg.png' });
   ok('mobile playground renders', await hasContent(m));
 
   // ---------- reduced motion
   const r = await browser.newPage({ viewport: { width: 1100, height: 760 }, reducedMotion: 'reduce' });
   watch(r, 'reduced');
-  await r.goto(`${base}#/mascot/orbit`, { waitUntil: 'commit' }); await ready(r); await r.waitForTimeout(3000);
+  await r.goto(`${base}#/mascot/orbit`, { waitUntil: 'commit' }); await ready(r); await r.evaluate(() => window.__stage?.settle()); await r.waitForTimeout(3000);
   await r.screenshot({ path: '.scratch/qa/pg-reduced.png' });
   ok('reduced-motion playground renders', await hasContent(r));
 } finally {

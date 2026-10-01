@@ -90,6 +90,9 @@ export class Stage {
   private frozen: number | null = null;
   private loadT = 0;
   private errors = 0;
+  /** After a context loss, pre-loss GPU handles are stale: disposing them logs GL errors, and forceContextLoss() frees everything anyway. */
+  private hadLoss = false;
+  private staleWorlds = new WeakSet<WorldRuntime>();
   private transition: { phase: 'in' | 'swap' | 'out'; t: number; opts: TravelOptions; dur: number } | null = null;
   private pendingEntrance: MovementDef | null = null;
 
@@ -196,6 +199,14 @@ export class Stage {
   stopClip() { this.instance?.animator.stop(); }
   get playing() { return this.instance?.animator.playing ?? null; }
   get qualityTier() { return this.tier; }
+  /** Test/QA hook: finish any transition, entrance and progressive load immediately. */
+  settle() {
+    for (let i = 0; i < 4 && this.transition; i++) this.stepTransition(10);
+    this.transition = null; this.pendingEntrance = null;
+    this.rig.setPush(0); this.veilU.uAlpha.value = 0;
+    this.instance?.animator.stopMovement();
+    this.loadT = 99; this.instance?.setFurRamp(1);
+  }
   /** True while a cinematic transition is running (tests and UI can wait on it). */
   get busy() { return !!this.transition || this.loadT < 2; }
   get isSafeMode() { return this.instance?.isSafe ?? false; }
@@ -303,18 +314,20 @@ export class Stage {
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     if (this.opts.mode !== 'static') this.unbindInput();
-    for (const i of this.instances.values()) i.dispose();
-    this.instances.clear();
-    this.world?.dispose();
-    for (const e of this.envCache.values()) e.dispose();
-    this.envCache.clear();
     resetCloudCache();
-    this.ground.geometry.dispose(); (this.ground.material as ShadowMaterial).dispose();
-    this.blob.geometry.dispose(); (this.blob.material as MeshBasicMaterial).dispose(); this.blobTex.dispose();
-    this.veil.geometry.dispose(); (this.veil.material as ShaderMaterial).dispose();
-    this.key.shadow.map?.dispose();
+    if (!this.hadLoss) {
+      for (const i of this.instances.values()) i.dispose();
+      this.world?.dispose();
+      for (const e of this.envCache.values()) e.dispose();
+      this.ground.geometry.dispose(); (this.ground.material as ShadowMaterial).dispose();
+      this.blob.geometry.dispose(); (this.blob.material as MeshBasicMaterial).dispose(); this.blobTex.dispose();
+      this.veil.geometry.dispose(); (this.veil.material as ShaderMaterial).dispose();
+      this.key.shadow.map?.dispose();
+      this.renderer.dispose();
+    }
+    this.instances.clear();
+    this.envCache.clear();
     this.scene.clear();
-    this.renderer.dispose();
     this.renderer.forceContextLoss();
   }
 
@@ -336,7 +349,9 @@ export class Stage {
   private onContextLost = (e: Event) => { e.preventDefault(); this.lost = true; this.syncRunning(); this.opts.onEvent?.({ type: 'context', lost: true }); };
   private onContextRestored = () => {
     this.lost = false;
-    for (const e of this.envCache.values()) e.dispose();
+    // Objects from the lost context are already invalid: forget them instead of disposing (which would spam GL errors).
+    this.hadLoss = true;
+    if (this.world) this.staleWorlds.add(this.world);
     this.envCache.clear();
     this.activateLighting(this.light.id);
     this.syncRunning();
@@ -414,7 +429,7 @@ export class Stage {
     this.world = w; this.worldId = id;
     this.ground.visible = !w.ownsFloor;
     this.applyFog();
-    if (old) { this.scene.remove(old.group); old.dispose(); }
+    if (old) { this.scene.remove(old.group); if (!this.staleWorlds.has(old)) old.dispose(); }
   }
 
   /** Build-then-swap: the previous world stays until the new one exists. */

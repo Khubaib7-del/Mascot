@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stage, type StageEvent } from '../engine/stage';
 import { webglSupported, type QualityTier } from '../engine/quality';
-import { ENVIRONMENTS } from '../engine/environments';
 import type { MascotConfig, MascotDefinition } from '../mascot/types';
 
 interface Props {
@@ -13,36 +12,34 @@ interface Props {
   label?: string;
   onStage?: (s: Stage | null) => void;
   onEvent?: (e: StageEvent) => void;
+  /** Requested tier; changes are applied in place and never recreate the canvas. */
   quality?: QualityTier;
+  entrance?: string;
+  poster?: string;
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'unsupported' | 'error';
 
-const gradient = (id: MascotConfig['environment']) => {
-  const [a, b] = ENVIRONMENTS[id].bg;
-  return `radial-gradient(120% 90% at 50% 20%, ${a}, ${b})`;
-};
-
 /**
  * Owns one Stage. Mounts lazily when scrolled into view, disposes on unmount, and shows the
- * pre-rendered poster until the first real frame so there is never an empty box.
+ * pre-rendered poster until the first real frame so there is never an empty box. Quality, world and
+ * config changes go through the live Stage — the canvas is only recreated by an explicit retry.
  */
-export function MascotViewer({ def, config, mode, shiftX, className = '', label, onStage, onEvent, quality }: Props) {
+export function MascotViewer({ def, config, mode, shiftX, className = '', label, onStage, onEvent, quality, entrance, poster }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<Stage | null>(null);
   const configRef = useRef(config);
+  const qualityRef = useRef(quality);
   const cbRef = useRef({ onStage, onEvent });
   const [status, setStatus] = useState<Status>('idle');
   const [attempt, setAttempt] = useState(0);
   const [posterOk, setPosterOk] = useState(true);
-  const prevEnv = useRef(config.environment);
-  const env = config.environment;
-  const under = prevEnv.current;
+  const [restoring, setRestoring] = useState(false);
 
   configRef.current = config;
+  qualityRef.current = quality;
   cbRef.current = { onStage, onEvent };
-  useEffect(() => { prevEnv.current = env; }, [env]);
 
   useEffect(() => {
     const el = box.current, cv = canvas.current;
@@ -56,13 +53,14 @@ export function MascotViewer({ def, config, mode, shiftX, className = '', label,
       setStatus('loading');
       try {
         stage = new Stage(cv, {
-          mode, shiftX, quality,
+          mode, shiftX, quality: qualityRef.current,
           onEvent: (e) => {
             if (first && e.type === 'frame') { first = false; if (!cancelled) setStatus('ready'); }
+            if (e.type === 'context') setRestoring(e.lost);
             cbRef.current.onEvent?.(e);
           },
         });
-        await stage.setMascot(def, configRef.current);
+        await stage.setMascot(def, configRef.current, { entrance });
         if (cancelled) { stage.dispose(); return; }
         stageRef.current = stage;
         cbRef.current.onStage?.(stage);
@@ -87,26 +85,25 @@ export function MascotViewer({ def, config, mode, shiftX, className = '', label,
       stageRef.current = null;
       stage?.dispose();
     };
-  }, [def, mode, shiftX, quality, attempt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [def.id, mode, shiftX, attempt]);
 
   useEffect(() => { stageRef.current?.applyConfig(config); }, [config]);
+  useEffect(() => { if (quality && stageRef.current && stageRef.current.qualityTier !== quality) stageRef.current.setQuality(quality); }, [quality]);
 
-  const showPoster = status !== 'ready' && posterOk;
+  const showPoster = (status !== 'ready' || restoring) && posterOk;
   return (
-    <div ref={box} className={`viewer ${className}`} data-status={status} data-ui={ENVIRONMENTS[env].ui}>
-      <div className="vbg" style={{ background: gradient(under) }} aria-hidden />
-      <div className="vbg vbg-top" key={env} style={{ background: gradient(env) }} aria-hidden />
-      {showPoster && (
-        <img className="poster" src={def.thumbnail} alt="" onError={() => setPosterOk(false)} draggable={false} />
-      )}
+    <div ref={box} className={`viewer ${className}`} data-status={status}>
+      {showPoster && <img className="poster" src={poster ?? def.thumbnail} alt="" onError={() => setPosterOk(false)} draggable={false} />}
       <canvas
         ref={canvas}
         className="viewer-canvas"
         tabIndex={status === 'ready' ? 0 : -1}
         role="img"
-        aria-label={label ?? `Interactive 3D mascot ${def.name}. Drag to rotate, press Enter to poke, arrow keys to orbit.`}
+        aria-label={label ?? `Interactive 3D mascot ${def.name}, ${def.species}. Drag to rotate, press Enter to poke, arrow keys to orbit.`}
       />
       {status === 'loading' && <div className="viewer-note" role="status"><span className="spinner" aria-hidden />Preparing {def.name}…</div>}
+      {restoring && <div className="viewer-note" role="status"><span className="spinner" aria-hidden />Restoring graphics…</div>}
       {(status === 'unsupported' || status === 'error') && (
         <div className="viewer-note viewer-fail" role="alert">
           <p>{status === 'unsupported' ? 'Your browser or device can’t run WebGL 2, so the live 3D view is unavailable.' : `${def.name} couldn’t be loaded.`}</p>

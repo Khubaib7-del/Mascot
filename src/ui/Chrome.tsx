@@ -1,10 +1,13 @@
-export function Nav({ current }: { current: string }) {
+import { Wordmark } from './Logo';
+
+export function Nav({ current, floating = false }: { current: string; floating?: boolean }) {
   return (
-    <header className="nav">
-      <a className="wordmark" href="#/" aria-label="Mascot — home">Mascot<span aria-hidden>.</span></a>
+    <header className={`nav ${floating ? 'nav-float' : ''}`}>
+      <Wordmark />
       <nav aria-label="Primary">
         <a href="#/explore" aria-current={current === 'explore' ? 'page' : undefined}>Collection</a>
-        <a href="#/mascot/moss">Playground</a>
+        <a href="#/mascot/floe">Playground</a>
+        <a href="#/#worlds" className="nav-soft">Worlds</a>
         <a href="#/#library" className="nav-soft">Library</a>
       </nav>
     </header>
@@ -14,11 +17,8 @@ export function Nav({ current }: { current: string }) {
 export function Footer() {
   return (
     <footer className="footer">
-      <div>
-        <span className="wordmark">Mascot<span aria-hidden>.</span></span>
-        <p>Interactive 3D characters with real surfaces.</p>
-      </div>
-      <p className="fine">Prototype build. All characters are original procedural designs owned by the project — see RESEARCH.md for asset and licence policy.</p>
+      <div><Wordmark /><p>Living characters for intelligent work.</p></div>
+      <p className="fine">Prototype build. Every character, prop and environment is an original procedural design owned by the project — see ASSETS.md for the asset and licence policy.</p>
     </footer>
   );
 }

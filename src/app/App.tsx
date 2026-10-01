@@ -2,7 +2,7 @@ import { Component, type ReactNode } from 'react';
 import { useRoute } from './router';
 import { Home } from '../ui/pages/Home';
 import { Explore } from '../ui/pages/Explore';
-import { Playground } from '../ui/pages/Playground';
+import { Playground } from '../ui/playground/Playground';
 import { getMascot } from '../mascot/registry';
 import { Nav, Footer } from '../ui/Chrome';
 
@@ -34,12 +34,13 @@ export function App() {
       </Boundary>
     );
   }
+  const home = first === undefined;
   return (
     <Boundary key={first ?? 'home'}>
       <a className="skip" href="#main">Skip to content</a>
-      <Nav current={first ?? ''} />
-      {first === 'explore' ? <Explore /> : first === undefined ? <Home /> : <NotFound />}
-      <Footer />
+      <Nav current={first ?? ''} floating={home} />
+      {first === 'explore' ? <Explore /> : home ? <Home /> : <NotFound />}
+      {!home && <Footer />}
     </Boundary>
   );
 }
@@ -48,7 +49,7 @@ function NotFound() {
   return (
     <main id="main" className="page notfound">
       <p className="eyebrow">404</p>
-      <h1 className="display">We couldn’t find that mascot.</h1>
+      <h1 className="display">We couldn’t find that character.</h1>
       <a className="btn" href="#/explore">Explore the collection</a>
     </main>
   );

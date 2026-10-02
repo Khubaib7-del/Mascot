@@ -3,6 +3,8 @@
 Run after every major visual change. Tooling: `node scripts/shots.mjs '<jobs>'` (deterministic stills), `node scripts/pose-sheet.mjs`, `node scripts/verify-ui.mjs` (full headless pass). All of this runs on software GL; judge **shape, face, materials and composition** there, and **performance** only on real hardware.
 
 ## Character
+- [ ] Compare against `docs/brand/reference/*.webp` at the same pose and crop: head-to-body ratio, limb thickness, ear shape, paw size.
+- [ ] Fur close-up in a *bright* preset (soft, studio, snowy): the coat must show fibre, tuft valleys and form shading, not flat white.
 - [ ] Full body, close-up, face, eyes (highlight present, pupil readable), mouth, paws, ears.
 - [ ] No clipping: scarf vs. head, headphones vs. ears, backpack vs. body, props vs. hands.
 - [ ] Face mask: fur fades before the eyes/muzzle; blush is not buried in fur.

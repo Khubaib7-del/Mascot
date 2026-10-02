@@ -197,3 +197,31 @@ Process (**[verified]** by rendering at 380 px, 32 px and 16 px): (1) a ring of 
 4. **Thumbnails are renders of the real engine** (signature look in its world) — consistent with "references, not flat hero art"; the supplied generated images are used only in the README and as the no‑WebGL poster.
 5. **Collection cards use one live preview, not four** — extra WebGL contexts are the main memory risk on mobile. Cards act as selectors for the live stage; static thumbnails are the fallback.
 6. **Typography:** Bricolage Grotesque (display), Inter (UI), DSEG7 (seven‑segment) *only* for numeric readouts — as the brief allows.
+
+---
+
+## 20. Revision 3 — fur and body structure (after review of revision 2)
+
+**What was wrong (observed in renders, side by side with the supplied references):**
+- *Fur:* revision 2 produced sparse, spiky dots on a flat white wash. Cause: strands stood straight up like a brush, each was a hard-edged dot, coat colour was uniform, and the skin underneath was much darker than the strands, which read as speckle. In bright presets the white coat clipped to paper.
+- *Bodies:* stacked ellipsoids with tiny arms and no neck/shoulder flow. The references use a very large round head with full cheeks, a pear-shaped torso, short thick limbs and big paws (bear); a slim body, long neck, tall ears and thin legs with dark hooves (alpaca); a round head, folded paws and a huge curled tail (leopard).
+- *Eyes:* flat beads; fur grew over them; no catch-lights (a unit bug), and tiny face parts cast blocky shadows onto each other.
+
+**What changed, and why (each item was verified by render):**
+
+| Problem | Technique | Notes |
+|---|---|---|
+| Brush-like fur | Shells are swept along a *flow field* (gravity on bodies, radial from the nose on faces) so the coat lies down | `uBend`; per-part override |
+| Speckle | **Tuft lattice** (coarse) over the strand lattice: strands lean toward their tuft centre as they rise, tufts vary in length and tone | the structure real locks have |
+| Hard dots | Analytic anti-aliasing from the screen-space derivative of the lattice + alpha-to-coverage under MSAA | hard cutoff fallback without MSAA |
+| Plastic look | `MeshPhysicalMaterial` **sheen** lobe (fabric/fur edge glow), per-strand normal tilt along the flow, per-tuft normal jitter | |
+| Flat white | **Valley AO** between tufts, root AO, and **analytic sphere AO** from proxy spheres for contact shading (head on chest, arms, legs) | skin and fur share it |
+| Clipping | Tone-mapping curves (Neutral/AgX/ACES) were compared: *all* clip; the cause was ambient light. Bright presets now use strong key + ~18 % of authored environment | measured with a luminance probe |
+| Fur over eyes | Up to three fur-length masks per part (face, eye sockets, ear hollows) | |
+| Wool | Helical **curl** offset + large lock clumps | reads as curled fibre up close |
+| Stacked-sphere bodies | **Smooth-union SDF bodies** meshed by surface nets; normals are SDF gradients | one organic form per part; eyes/nose/accessories snap onto the surface with a ray-march |
+| Dead eyes | Textured iris cap (limbus, ring, fibres, lit crescent), black pupil, glass cornea, two catch-lights, optional lashes; small face parts don't cast/receive shadows | |
+
+**Measured / observed costs (software GL, so only relative):** HIGH ≈ 1.3 M triangles, ULTRA ≈ 2.6–2.9 M per character (shell count × coat). SDF meshing is ≈ 1–1.6 s of CPU per character on this sandbox (7 blobs); it is cached per spec/cell size within a session. **Not measured on real GPUs.** If load time matters on phones, the mesher can move to a Web Worker or be baked to GLB — the output is plain geometry.
+
+**Still not real fur:** no strand geometry, no self-shadowing between shells, no subsurface scattering. Wool curls are visible only from close range; at hero distance wool and fleece look similar. These are the honest limits of a shell approach in WebGL; WebGPU compute strands would be the next step.

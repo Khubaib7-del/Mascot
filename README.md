@@ -16,8 +16,8 @@ Agent products have faces made of logos and sparkles. Characters carry trust and
 
 | | |
 |---|---|
-| **Characters** | Floe (polar bear cub, short plush coat), Alma (baby alpaca, clumped wool + topknot), Lumi (snow leopard cub, directional coat with painted rosettes, whiskers, long tail), Orbit (synthetic non-animal). Each is its own body, face and fur personality — not a recoloured model. |
-| **Fur & materials** | Hybrid shell fur (one instanced draw per part, procedural strands, clumping, root shadow, backscatter rim), per-character fur profiles, 14 surfaces from fur/wool/fleece/velvet to rubber, glossy, metallic, translucent. Fur length, density, softness, fluffiness, direction, variation, roughness and sheen are live sliders. |
+| **Characters** | Floe (polar bear cub, short plush coat), Alma (baby alpaca, clumped wool + topknot), Lumi (snow leopard cub, directional coat with painted rosettes, whiskers, long tail), Orbit (synthetic non-animal). Each is sculpted as one organic form (smooth-blended SDF bodies) to its reference proportions, with its own face and fur personality — not a recoloured model. |
+| **Fur & materials** | Shell fur with tufts, combed flow, curl, anti-aliased strands, fabric-like sheen and contact shading; per-character fur profiles; 14 surfaces from short fur, long fur, wool and fleece to velvet, rubber, glossy, metallic and translucent. Length, density, softness, fluffiness, direction, variation, roughness and sheen are live sliders. |
 | **Face** | 14 expressions with smooth transitions; sliders for eye size, iris, pupil, spacing, highlight, squint, blink speed; heterochromia; eyes follow the cursor (eyes first, head second). |
 | **Colour** | Region-based (coat, markings, eyes, blush, inner ears, paws, outfit pieces) with a curated palette grid, HSV sliders, HEX and RGB entry. |
 | **Outfit & charms** | Scarf, bow tie, glasses, headphones, cap, backpack, badge, watch — attached to named body points with spring-chain secondary motion. A six-slot keychain rail with ~40 original miniatures (keyboard, terminal, commit graph, database, rocket, energy hammer, arc-reactor-style badge…). |
@@ -61,6 +61,7 @@ Accessories, charms, props, states, worlds and lighting need no changes — they
 - **No real-GPU measurements.** Tier thresholds are estimates; adaptive downgrade is the safety net. First task on hardware: profile phones and integrated GPUs.
 - **Characters are procedural prototypes**, built from primitives. A modeller/rigger is needed for final quality; the GLB loader branch exists in the data model but is not implemented.
 - **`mascot-hero-background.png` was not supplied.** The hero environment was recreated from the README banner's composition (pastel peaks, floating castle island, mossy ledge, blurred desk) instead.
+- Fur is a shell approximation: no strand geometry, no self-shadowing, no subsurface scattering. Body meshing costs ~1–1.6 s of CPU per character at load (cached; could move to a worker or be baked).
 - WebGPU is evaluated, not used (see RESEARCH.md). Cloth is a spring-chain approximation, not a simulation. Airport/lab/hangar worlds and large vehicles beyond the aeroplane wing and rocket are not built.
 - No payments, accounts or backend by design.
 

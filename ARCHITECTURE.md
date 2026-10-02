@@ -9,7 +9,9 @@ src/
   engine/         rendering + animation — no React imports
     stage.ts            renderer, lights, input, loop, quality transactions, transitions, recovery
     mascotInstance.ts   definition + config → scene graph; attach nodes; props; halo; secondary motion
-    fur.ts              shell-fur material patch + procedural markings
+    fur.ts              shell-fur material (tufts, flow, curl, AA, sheen) + markings + contact AO
+    blob.ts             SDF primitives, smooth union, surface-nets mesher, surface ray-march
+    textures.ts         iris and blush textures
     surfaces.ts         14 surface presets
     lighting.ts         11 lighting presets + baked IBL
     camera.ts           camera rig (orbit, zoom, pan, 11 presets, push-in for transitions)
@@ -75,7 +77,9 @@ Worlds (`engine/worlds`) are built from real geometry, instanced meshes, canvas 
 
 - **Roles** (`head`, `earL`, `eyeL`, `irisL`, `armL`, `legBL`, `tail`, `topknot`, …) are the contract between data and animation. A part declares a role; the animator drives it; missing roles are skipped. `roleAliases` lets a quadruped reuse biped clips (armL → legFL).
 - **Face**: `Params` (eye size, iris, pupil, spacing, highlight, squint, heterochromia, head/body size) scale stored base transforms (`p0`, `s0`) so slider changes never compound.
-- **Fur**: surface preset × character `FurProfile` × user sliders × per-part multiplier → shell uniforms. Wool uses *lock clumping* (strands lean in groups via a layer-dependent lattice shift). Markings (spots, rosettes, patches) are a one-cell-per-lattice procedural mask shared by the skin material and every shell.
+- **Bodies** are `shape: 'blob'`: a list of ellipsoids and round cones smooth-unioned (and optionally subtracted, for ear hollows) and meshed once per spec. `surfaceZ()` ray-marches the same SDF so faces and accessories sit exactly on the skin. Limbs are separate parts (they animate) but are authored to overlap their neighbours, and the fur hides the seam.
+- **Fur**: surface preset × character `FurProfile` × user sliders × per-part multiplier → shell uniforms. Strands live on a 3D lattice sampled at the base surface point; a coarser tuft lattice pulls strands together as they rise, gives each tuft its own length and tone, darkens the valleys between tufts and jitters the normal per tuft. Shells are swept along a flow field, anti-aliased analytically, and shaded with a sheen lobe. Wool adds a helical curl. Up to three length masks per part keep eyes and ear hollows bare. Markings (spots, rosettes, patches) are a one-cell-per-lattice procedural mask shared by the skin and every shell.
+- **Contact AO**: each character lists up to six proxy spheres (`occluders`); their world positions are updated every frame and the skin and fur shaders darken where parts meet.
 
 ## Animation
 
@@ -94,7 +98,7 @@ No global store. The playground keeps one `MascotConfig` in React state, mirrore
 
 ## Performance
 
-Tiers (`quality.ts`): DPR cap, fur layer scale, shadows, shadow-map size, MSAA, 30 fps cap on low. Render only while visible; one live canvas per page region; instancing for trees, grass, buildings, keys; shell fur = one instanced draw per part; world particle counts scale with tier. Fur geometry uses 60 % segments. Posters (WebP renders) show first.
+Tiers (`quality.ts`): DPR cap, fur layer scale, shadows, shadow-map size, MSAA, blob mesh resolution, 30 fps cap on low. Bright lighting presets are scaled (key 0.8×, environment 0.18×) so white coats keep their shading. Render only while visible; one live canvas per page region; instancing for trees, grass, buildings, keys; shell fur = one instanced draw per part; world particle counts scale with tier. Fur geometry uses 60 % segments. Posters (WebP renders) show first.
 
 ## Asset pipeline
 

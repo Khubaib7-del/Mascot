@@ -1,4 +1,5 @@
-import { BufferGeometry, CapsuleGeometry, ConeGeometry, SphereGeometry, TorusGeometry } from 'three';
+import { BufferGeometry, CapsuleGeometry, CatmullRomCurve3, CircleGeometry, ConeGeometry, Float32BufferAttribute, SphereGeometry, TorusGeometry, TubeGeometry, Vector3 } from 'three';
+import { buildBlobGeometry } from './blob';
 import type { PartDef } from '../mascot/types';
 
 /**
@@ -6,7 +7,7 @@ import type { PartDef } from '../mascot/types';
  * inverse scale rather than recomputed, so UV seams don't show up in lighting and fur shells extrude
  * along correct normals.
  */
-export function buildGeometry(p: PartDef, seg: [number, number]): BufferGeometry {
+export function buildGeometry(p: PartDef, seg: [number, number], detail = 1): BufferGeometry {
   const [a = 1, b = 1] = p.size;
   let g: BufferGeometry;
   switch (p.shape) {
@@ -19,6 +20,24 @@ export function buildGeometry(p: PartDef, seg: [number, number]): BufferGeometry
     case 'cone': g = new ConeGeometry(a, b, Math.max(16, Math.round(seg[0] / 2))); break;
     case 'ring': g = new TorusGeometry(a, b, 16, Math.max(32, seg[0])); break;
     case 'smile': g = new TorusGeometry(a, b, 8, 28, Math.PI); g.rotateZ(Math.PI); break;
+    case 'blob': g = buildBlobGeometry(p.blob!, (p.blob!.cell ?? 0.03) / Math.max(0.5, detail)); break;
+    case 'disc': g = new CircleGeometry(a, 40); break;
+    case 'arc': { const arc = p.size[2] ?? 1.6; g = new TorusGeometry(a, b, 8, 24, arc); g.rotateZ(Math.PI / 2 - arc / 2); break; }
+    case 'cap': {
+      // Spherical cap with planar UVs (for iris textures): pole faces +z, `a` = half-angle of the cap.
+      g = new SphereGeometry(1, 40, 14, 0, Math.PI * 2, 0, a); g.rotateX(Math.PI / 2);
+      const pos = g.getAttribute('position'), uv: number[] = [], r = Math.sin(a);
+      for (let i = 0; i < pos.count; i++) uv.push((pos.getX(i) / r) * 0.5 + 0.5, (pos.getY(i) / r) * 0.5 + 0.5);
+      g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+      break;
+    }
+    case 'wmouth': {
+      // The "w" smile of a cat/bear: two soft arcs meeting under the nose, corners lifting.
+      const pts: Vector3[] = [];
+      for (let i = 0; i <= 28; i++) { const t = (i / 28) * 2 - 1, at = Math.abs(t); pts.push(new Vector3(t * a, a * (-0.62 * Math.sin(Math.PI * Math.pow(at, 0.85)) + 0.34 * at * at * at), 0)); }
+      g = new TubeGeometry(new CatmullRomCurve3(pts), 40, b, 8);
+      break;
+    }
   }
   if (p.stretch) applyStretch(g, p.stretch);
   return g;

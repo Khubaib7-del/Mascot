@@ -20,7 +20,7 @@ export const orbit: MascotDefinition = {
   license: { holder: 'Mascot project', terms: 'Original design, project-owned', assets: 'Procedurally generated — no third-party assets' },
   thumbnail: '/thumbs/orbit.webp',
   palette: { body: '#eceff4', accent: '#ff7d5c', eye: '#79e0d0', eye2: '#79e0d0', detail: '#2a2f3a', brow: '#2a2f3a', cheek: '#ff7d5c' },
-  defaults: { surface: 'synthetic', expression: 'happy', lighting: 'night', world: 'space', camera: 'hero' },
+  defaults: { surface: 'synthetic', expression: 'happy', lighting: 'cinematic', world: 'space', camera: 'hero' },
   framing: { height: 1.85, center: [0, 0.9, 0] },
   fur: { length: 1, density: 1, fluff: 0.5, softness: 0.5, gravity: 1, variation: 0.3 },
   face: { eyeSize: 1, irisSize: 1, pupilSize: 1, eyeSpacing: 1, highlight: 1 },

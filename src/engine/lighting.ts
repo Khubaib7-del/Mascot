@@ -39,7 +39,7 @@ export const LIGHTING: Record<LightingId, LightingDef> = {
       { at: [0, 4, -5], size: [5, 2], color: '#ffffff', intensity: 3 },
     ],
     envIntensity: 0.85, key: { color: '#fff6ea', intensity: 2.6, at: [-2.4, 4, 3] }, rim: { color: '#dfe9ff', intensity: 1.6, at: [3, 2.2, -3] },
-    fill: { sky: '#ffffff', ground: '#cfcac2', intensity: 0.35 }, exposure: 1.0, shadow: 0.26, furRim: '#ffffff',
+    fill: { sky: '#ffffff', ground: '#cfcac2', intensity: 0.35 }, exposure: 0.95, shadow: 0.26, furRim: '#ffffff',
   },
   sunset: {
     id: 'sunset', label: 'Warm sunset', note: 'Low golden sun', ui: 'light',
@@ -49,7 +49,7 @@ export const LIGHTING: Record<LightingId, LightingDef> = {
       { at: [5, 4, -2], size: [4, 4], color: '#7f9bdc', intensity: 1.8 },
     ],
     envIntensity: 0.8, key: { color: '#ffae66', intensity: 3.4, at: [-3, 1.9, 2.6] }, rim: { color: '#9fb4ff', intensity: 2.0, at: [3, 2.6, -3] },
-    fill: { sky: '#8794c4', ground: '#8a5a45', intensity: 0.35 }, exposure: 1.0, shadow: 0.38, furRim: '#ffc58a',
+    fill: { sky: '#8794c4', ground: '#8a5a45', intensity: 0.35 }, exposure: 0.95, shadow: 0.38, furRim: '#ffc58a',
   },
   morning: {
     id: 'morning', label: 'Cool morning', note: 'Crisp blue light', ui: 'light',
@@ -59,7 +59,7 @@ export const LIGHTING: Record<LightingId, LightingDef> = {
       { at: [-5, 3, 2], size: [3, 4], color: '#bcd6ff', intensity: 2.4 },
     ],
     envIntensity: 0.95, key: { color: '#fff1dc', intensity: 3.0, at: [3, 3.6, 2.8] }, rim: { color: '#cde0ff', intensity: 1.8, at: [-3.2, 2.4, -2.8] },
-    fill: { sky: '#cfe2ff', ground: '#dfe6ee', intensity: 0.5 }, exposure: 1.0, shadow: 0.26, furRim: '#eaf3ff',
+    fill: { sky: '#cfe2ff', ground: '#dfe6ee', intensity: 0.5 }, exposure: 0.92, shadow: 0.26, furRim: '#eaf3ff',
   },
   night: {
     id: 'night', label: 'Night', note: 'Moonlit, cold shadows', ui: 'dark',
@@ -97,7 +97,7 @@ export const LIGHTING: Record<LightingId, LightingDef> = {
       { at: [5, 2, 3], size: [3, 4], color: '#eef4ff', intensity: 2 },
     ],
     envIntensity: 1.05, key: { color: '#fff9f3', intensity: 1.7, at: [-2, 4.2, 3] }, rim: { color: '#eaf1ff', intensity: 1.0, at: [3, 2.4, -3] },
-    fill: { sky: '#ffffff', ground: '#e2ded7', intensity: 0.65 }, exposure: 1.02, shadow: 0.16, furRim: '#ffffff',
+    fill: { sky: '#ffffff', ground: '#e2ded7', intensity: 0.65 }, exposure: 0.88, shadow: 0.16, furRim: '#ffffff',
   },
   fantasy: {
     id: 'fantasy', label: 'Fantasy', note: 'Violet dusk, magic glow', ui: 'light',
@@ -129,7 +129,7 @@ export const LIGHTING: Record<LightingId, LightingDef> = {
       { at: [5, 3, 0], size: [3, 4], color: '#b9d3ff', intensity: 2.4 },
     ],
     envIntensity: 1.0, key: { color: '#fff4e0', intensity: 2.8, at: [-2.8, 3.6, 3] }, rim: { color: '#c8defe', intensity: 1.8, at: [3, 2.4, -3] },
-    fill: { sky: '#d3e4ff', ground: '#f2f6fb', intensity: 0.6 }, exposure: 1.0, shadow: 0.26, furRim: '#eaf4ff',
+    fill: { sky: '#d3e4ff', ground: '#f2f6fb', intensity: 0.6 }, exposure: 0.8, shadow: 0.26, furRim: '#eaf4ff',
   },
   indoor: {
     id: 'indoor', label: 'Indoor', note: 'Lamp and screen glow', ui: 'dark',

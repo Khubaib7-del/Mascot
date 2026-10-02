@@ -1,11 +1,12 @@
 import {
   BufferGeometry, Color, Euler, Group, InstancedMesh, IUniform, Material, Mesh, MeshBasicMaterial, MeshPhysicalMaterial,
-  MeshStandardMaterial, Object3D, SphereGeometry, TorusGeometry, Vector3,
+  MeshStandardMaterial, Object3D, SphereGeometry, TorusGeometry, Vector3, Vector4,
 } from 'three';
 import type { AttachPoint, MascotConfig, MascotDefinition, Params, PartDef, Role } from '../mascot/types';
 import { DEFAULT_PARAMS } from '../mascot/types';
 import { buildGeometry } from './geometry';
-import { attachMarkings, createFurMaterial, createMarkUniforms, type FurUniforms, type MarkUniforms } from './fur';
+import { blushTexture, irisTexture } from './textures';
+import { attachMarkings, attachOcclusion, createFurMaterial, createMarkUniforms, createOccUniforms, OCC_COUNT, type FurUniforms, type MarkUniforms } from './fur';
 import { SURFACES, type SurfaceDef } from './surfaces';
 import type { QualitySettings } from './quality';
 import { Animator } from './animation/animator';
@@ -21,7 +22,7 @@ interface PartHandle {
   group: Group;
   mesh: Mesh;
   core: Material;
-  fur?: { mesh: InstancedMesh; material: MeshStandardMaterial; uniforms: FurUniforms };
+  fur?: { mesh: InstancedMesh; material: MeshPhysicalMaterial; uniforms: FurUniforms };
   marks?: MarkUniforms;
   geometry: BufferGeometry;
   sig?: string;
@@ -65,6 +66,7 @@ export class MascotInstance {
   private halo: { group: Group; beads: Mesh[]; mats: MeshBasicMaterial[] } | null = null;
   private time = 0;
   readonly unit: number;
+  private occ = Array.from({ length: OCC_COUNT }, () => new Vector4());
 
   constructor(readonly def: MascotDefinition, quality: QualitySettings, private timeU: IUniform<number>) {
     this.furLayerScale = quality.furLayerScale;
@@ -81,24 +83,31 @@ export class MascotInstance {
 
       // Fur geometry only needs to carry the silhouette; strand detail comes from the fragment shader.
       const seg = quality.sphereSegments;
-      const geometry = buildGeometry(pd, pd.furry ? [Math.max(24, Math.round(seg[0] * 0.6)), Math.max(16, Math.round(seg[1] * 0.6))] : seg);
+      const geometry = buildGeometry(pd, pd.furry ? [Math.max(24, Math.round(seg[0] * 0.6)), Math.max(16, Math.round(seg[1] * 0.6))] : seg, seg[0] / 56);
       const core = this.createCoreMaterial(pd);
       const mesh = new Mesh(geometry, core);
       mesh.position.set(...(pd.offset ?? [0, 0, 0]));
-      mesh.castShadow = !['highlight', 'glow', 'blush'].includes(pd.finish);
-      mesh.receiveShadow = pd.finish !== 'highlight';
+      mesh.castShadow = !pd.flat && !['highlight', 'glow', 'blush', 'glass', 'iris'].includes(pd.finish);
+      mesh.receiveShadow = !pd.flat && pd.finish !== 'highlight';
       group.add(mesh);
       if (pd.hit) { mesh.userData.hit = true; this.hitMeshes.push(mesh); }
 
       const handle: PartHandle = { def: pd, group, mesh, core, geometry };
+      const occIdx = (def.occluders ?? []).findIndex((o) => o.role === pd.role);
+      const occU = createOccUniforms(this.occ); occU.uOccSelf.value = pd.role ? occIdx : -1;
       if (pd.markings) { handle.marks = createMarkUniforms(); if (pd.finish === 'surface') attachMarkings(core, handle.marks); }
+      if (pd.finish === 'surface') attachOcclusion(core, occU);
       if (pd.furry && pd.finish === 'surface') {
-        const { material, uniforms } = createFurMaterial(this.timeU, handle.marks ?? createMarkUniforms());
+        const { material, uniforms } = createFurMaterial(this.timeU, handle.marks ?? createMarkUniforms(), occU);
         const shells = new InstancedMesh(geometry, material, 80);
+        material.alphaToCoverage = quality.msaa;
+        uniforms.uHard.value = quality.msaa ? 0 : 1;
         shells.position.copy(mesh.position);
         shells.frustumCulled = false; // shells extrude past the base bounds
-        shells.castShadow = false; shells.receiveShadow = false; shells.visible = false;
-        if (pd.furMask) { uniforms.uMaskC.value.set(...pd.furMask.center); uniforms.uMaskR.value.set(...pd.furMask.radii); }
+        shells.castShadow = false; shells.receiveShadow = true; shells.visible = false;
+        const masks = pd.furMask ? (Array.isArray(pd.furMask) ? pd.furMask : [pd.furMask]).slice(0, 3) : [];
+        masks.forEach((m, i) => { uniforms.uMaskC.value[i].set(...m.center); uniforms.uMaskR.value[i].set(...m.radii); uniforms.uMaskF.value[i] = m.fade ?? 0.2; });
+        if (pd.flow) { uniforms.uRadial.value = pd.flow.radial ?? 0; if (pd.flow.origin) uniforms.uFlowC.value.set(...pd.flow.origin); }
         group.add(shells);
         handle.fur = { mesh: shells, material, uniforms };
       }
@@ -126,14 +135,20 @@ export class MascotInstance {
     this.buildHalo();
   }
 
+  private blushTex: ReturnType<typeof blushTexture> | null = null;
+  private irisTex: ReturnType<typeof irisTexture> | null = null;
+  private texBlush() { return (this.blushTex ??= blushTexture(this.tr)); }
+  private texIris() { return (this.irisTex ??= irisTexture(this.tr)); }
+
   private createCoreMaterial(p: PartDef): Material {
     switch (p.finish) {
       case 'surface': return new MeshPhysicalMaterial({ roughness: 0.6 });
       case 'matte': return new MeshStandardMaterial({ roughness: 0.85, color: p.color ?? '#ffffff' });
       case 'pad': return new MeshStandardMaterial({ roughness: 0.7, color: p.color ?? '#3a2b2b' });
-      case 'blush': return new MeshStandardMaterial({ roughness: 1, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+      case 'blush': return new MeshStandardMaterial({ roughness: 1, map: this.texBlush(), transparent: true, opacity: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
+      case 'glass': return new MeshPhysicalMaterial({ color: '#ffffff', roughness: 0, transparent: true, opacity: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, depthWrite: false, envMapIntensity: 1.1 });
       case 'gloss': return new MeshPhysicalMaterial({ roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.15, color: p.color ?? '#ffffff' });
-      case 'iris': return new MeshPhysicalMaterial({ roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.05 });
+      case 'iris': return new MeshPhysicalMaterial({ roughness: 0.2, clearcoat: 0.55, clearcoatRoughness: 0.12, map: this.texIris(), polygonOffset: true, polygonOffsetFactor: -2 });
       case 'eye': return new MeshPhysicalMaterial({ color: p.color ?? '#15110f', roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6 });
       case 'sclera': return new MeshPhysicalMaterial({ color: p.color ?? '#f6f1ea', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 });
       case 'inner': return new MeshStandardMaterial({ color: p.color ?? '#3a2024', roughness: 0.55 });
@@ -178,7 +193,7 @@ export class MascotInstance {
     switch (h.def.finish) {
       case 'matte': case 'pad': case 'gloss': case 'blush': m.color.copy(color); break;
       case 'glow': (m as unknown as MeshBasicMaterial).color.copy(color).multiplyScalar(1.4); break;
-      case 'iris': m.color.copy(color); (m as MeshPhysicalMaterial).emissive.copy(color).multiplyScalar(0.18); break;
+      case 'iris': m.color.copy(color).multiplyScalar(1.25); (m as MeshPhysicalMaterial).emissive.copy(color).multiplyScalar(0.12); break;
       default: break;
     }
   }
@@ -188,7 +203,7 @@ export class MascotInstance {
     const m = h.core as MeshPhysicalMaterial;
     const furry = !this.safe && !!h.fur && !!s.fur;
     m.color.copy(color);
-    if (furry) m.color.multiplyScalar(0.62);
+    if (furry) m.color.multiplyScalar(0.84 + (1 - this.coverage()) * 0.13);
     const rough = clamp(s.roughness * (0.5 + p.roughness), 0, 1);
     m.roughness = furry ? 1 : rough;
     m.metalness = furry ? 0 : s.metalness;
@@ -207,15 +222,24 @@ export class MascotInstance {
         const u = h.fur.uniforms;
         const fluff = clamp((prof.fluff + p.fluffiness) / 2, 0, 1);
         h.fur.material.color.copy(color);
-        h.fur.material.roughness = clamp(0.8 + (p.roughness - 0.5) * 0.4, 0.5, 1);
-        u.uLen.value = f.length * prof.length * p.furLength * (part?.length ?? 1) * (h.def.role === 'head' ? 0.9 : 1);
+        h.fur.material.roughness = clamp(0.85 + (p.roughness - 0.5) * 0.3, 0.6, 1);
+        h.fur.material.sheen = clamp(0.15 + p.sheen * 0.5, 0, 1);
+        h.fur.material.sheenColor.copy(color).multiplyScalar(0.9);
+        u.uLen.value = f.length * prof.length * p.furLength * (part?.length ?? 1) * (h.def.role === 'head' ? 0.92 : 1);
         u.uDensity.value = f.density * prof.density * p.furDensity * (part?.density ?? 1);
-        u.uRoot.value = f.rootDark;
-        u.uRim.value = f.rim * (0.5 + p.sheen);
+        const cv = this.coverage(), cvk = 0.12 + 0.88 * Math.pow(cv, 1.6);
+        u.uRoot.value = f.rootDark * cvk;
+        u.uValley.value = 0.34 * cvk;
+        u.uGain.value = 1 + (1 - cv) * 0.3;
+        u.uRim.value = f.rim * (0.08 + p.sheen * 0.22);
         u.uGravity.value = f.gravity * prof.gravity;
         u.uLean.value = (p.furDirection - 0.5) * 1.6;
-        u.uClump.value = clamp(f.clump + fluff * 0.25 - 0.1, 0, 1);
-        u.uThick.value = f.thickness;
+        u.uBend.value = f.bend * (h.def.flow?.bend ?? 1);
+        u.uClump.value = clamp(f.clump + (fluff - 0.5) * 0.3, 0, 1.2);
+        u.uTuft.value = f.tuft;
+        u.uCurl.value = f.curl;
+        u.uWisp.value = f.wisp * (0.5 + fluff);
+        u.uThick.value = f.thickness * (1 + (1 - this.coverage()) * 0.6);
         u.uFluff.value = fluff;
         u.uSoft.value = clamp((prof.softness + p.softness) / 2, 0, 1);
         u.uVary.value = clamp((prof.variation + p.furVariation) / 2, 0, 1);
@@ -358,6 +382,7 @@ export class MascotInstance {
 
   update(dt: number, t: number) {
     this.time = t;
+    this.updateOccluders();
     // props
     for (const p of this.propLive) {
       if (p.motion === 'float') p.obj.position.y = p.base.y + Math.sin(t * 1.6 + p.base.x * 3) * 0.04 * this.unit;
@@ -382,6 +407,20 @@ export class MascotInstance {
     }
     this.stepSwings(Math.min(dt, 1 / 30));
   }
+
+  private updateOccluders() {
+    const list = this.def.occluders ?? [];
+    this.root.updateMatrixWorld();
+    for (let i = 0; i < OCC_COUNT; i++) {
+      const o = list[i], v = this.occ[i];
+      const obj = o && this.roles.get(o.role)?.[0]?.obj;
+      if (!o || !obj) { v.set(0, 0, 0, 0); continue; }
+      this.tmp.set(...o.center); obj.localToWorld(this.tmp);
+      obj.getWorldScale(this.occScale);
+      v.set(this.tmp.x, this.tmp.y, this.tmp.z, o.r * this.occScale.x);
+    }
+  }
+  private occScale = new Vector3();
 
   private stepSwings(dt: number) {
     if (!this.swings.length || dt <= 0) return;
@@ -424,9 +463,11 @@ export class MascotInstance {
   setFurLayerScale(scale: number) { this.furLayerScale = scale; this.relayer(); }
   /** Progressive loading: 0 = skin only, 1 = full fur. */
   setFurRamp(r: number) { if (Math.abs(r - this.furRamp) > 0.004) { this.furRamp = r; this.relayer(); } }
+  /** 1 at full layer density; lower tiers have fewer shells to hide the roots, so the coat must be less contrasty. */
+  private coverage() { return clamp(this.furLayerScale * this.furRamp, 0.25, 1); }
   private relayer() {
     if (!this.surface.fur) return;
-    for (const h of this.parts.values()) if (h.fur?.mesh.visible) this.setLayers(h, this.surface.fur.layers);
+    for (const h of this.parts.values()) if (h.fur?.mesh.visible) this.applySurface(h, this.colorsBySlot.get(h.def.slot ?? '') ?? this.defaultColor(h.def.slot ?? 'body'));
   }
   /** Last-resort fallback: drop shader-based fur and show skin. The character stays on screen. */
   setSafeMode(on: boolean) {

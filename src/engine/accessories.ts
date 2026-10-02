@@ -59,11 +59,17 @@ const mesh = (tr: Tracker, geo: Mesh['geometry'], mat: MeshStandardMaterial | Me
 };
 
 function knitTexture(tr: Tracker) {
-  const t = canvasTex(64, 64, (c) => {
-    c.fillStyle = '#e8e8e8'; c.fillRect(0, 0, 64, 64); const r = rng(5);
-    for (let y = 0; y < 64; y += 4) for (let x = 0; x < 64; x += 4) { c.fillStyle = `rgba(0,0,0,${0.1 + r() * 0.08})`; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 2, y + 4); c.lineTo(x + 4, y); c.lineTo(x + 3, y); c.lineTo(x + 2, y + 2.4); c.lineTo(x + 1, y); c.fill(); }
+  const t = canvasTex(128, 128, (c) => {
+    c.fillStyle = '#ececec'; c.fillRect(0, 0, 128, 128); const r = rng(5);
+    // Rows of stitched "V"s, plus a small snowflake motif, to read as hand-knit at any distance.
+    for (let y = 0; y < 128; y += 6) for (let x = 0; x < 128; x += 6) {
+      c.fillStyle = `rgba(0,0,0,${0.16 + r() * 0.1})`;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x + 3, y + 5.5); c.lineTo(x + 6, y); c.lineTo(x + 4.6, y); c.lineTo(x + 3, y + 3); c.lineTo(x + 1.4, y); c.fill();
+    }
+    c.fillStyle = 'rgba(255,255,255,0.55)';
+    for (const [cx, cy] of [[32, 32], [96, 96]]) for (let k = 0; k < 6; k++) { c.save(); c.translate(cx, cy); c.rotate((k * Math.PI) / 3); c.fillRect(-1.5, -12, 3, 24); c.restore(); }
   }, tr);
-  t.wrapS = t.wrapT = 1000; t.repeat.set(4, 2);
+  t.wrapS = t.wrapT = 1000; t.repeat.set(5, 2);
   return t;
 }
 
@@ -74,19 +80,34 @@ export const ACCESSORIES: Record<string, AccessoryDef> = {
     id: 'scarf', label: 'Knit scarf', group: 'Neck', attach: ['neck'], colors: ['scarf'],
     build(tr) {
       const s = new Slots(tr), knit = knitTexture(tr);
-      const mat = s.mat('scarf', 1, { map: knit, bumpMap: knit, bumpScale: 1.2 });
+      const mat = s.mat('scarf', 1, { map: knit, bumpMap: knit, bumpScale: 1.6 });
       const g = new Group();
-      const ring = mesh(tr, new TorusGeometry(1, 0.3, 14, 40), mat); ring.rotation.x = Math.PI / 2; ring.scale.set(1, 1, 0.82); g.add(ring);
-      const knot = mesh(tr, new SphereGeometry(0.34, 16, 12), mat, 0.55, -0.12, 0.86); knot.scale.set(1, 1.1, 0.85); g.add(knot);
+      // Two thick wraps at slightly different tilts read as a scarf wound twice round the neck.
+      const wrap = (r: number, tube: number, y: number, tilt: number) => {
+        const m = mesh(tr, new TorusGeometry(r, tube, 18, 48), mat, 0, y, 0);
+        m.rotation.x = Math.PI / 2 + tilt; m.scale.set(1, 1, 0.92); return m;
+      };
+      g.add(wrap(1.0, 0.36, 0, 0.12), wrap(1.04, 0.3, -0.22, -0.1));
+      const knot = mesh(tr, new SphereGeometry(0.44, 20, 14), mat, 0.5, -0.2, 1.08); knot.scale.set(1.05, 1.1, 0.85); g.add(knot);
       const swings: SwingDef[] = [];
-      let parent: Group = g, y = -0.1;
-      for (let i = 0; i < 3; i++) {
-        const piv = new Group(); piv.position.set(i === 0 ? 0.55 : 0, i === 0 ? y : -0.5, i === 0 ? 0.92 : 0.0); parent.add(piv);
-        const seg = mesh(tr, new BoxGeometry(0.36, 0.52, 0.09), mat, 0, -0.25, 0); piv.add(seg);
-        if (i === 2) piv.add(mesh(tr, new BoxGeometry(0.36, 0.06, 0.1), s.mat('scarf', 1), 0, -0.55, 0));
-        swings.push({ pivot: piv, ref: 'neck', gain: 0.9 + i * 0.5, stiffness: 36 - i * 6, damping: 3.2, max: 0.9, mode: 'rot', lag: i });
-        parent = piv;
-      }
+      // Two flat tails of different length hang from the knot, each a 3-link chain with a fringe at the end.
+      const tail = (x: number, len: number, lean: number, phase: number) => {
+        let parent: Group = g;
+        for (let i = 0; i < 3; i++) {
+          const piv = new Group();
+          piv.position.set(i === 0 ? x : 0, i === 0 ? -0.34 : -len / 3, i === 0 ? 1.12 : 0);
+          piv.rotation.x = i === 0 ? lean : 0.04;
+          parent.add(piv);
+          piv.add(mesh(tr, new BoxGeometry(0.5, len / 3 + 0.02, 0.15), mat, 0, -len / 6, 0));
+          if (i === 2) {
+            const fr = tr.add(new BoxGeometry(0.035, 0.18, 0.05));
+            for (let f = 0; f < 7; f++) piv.add(mesh(tr, fr, mat, -0.21 + f * 0.07, -len / 3 - 0.07, 0));
+          }
+          swings.push({ pivot: piv, ref: 'neck', gain: 0.8 + i * 0.5 + phase * 0.1, stiffness: 34 - i * 6, damping: 3.2, max: 0.9, mode: 'rot', lag: i + phase });
+          parent = piv;
+        }
+      };
+      tail(0.62, 1.55, 0.28, 0); tail(0.18, 1.05, 0.34, 1);
       return rig({ neck: g }, swings, s);
     },
   },

@@ -23,12 +23,15 @@ async function main() {
   const config = sanitizeConfig(def, patch);
   const canvas = document.getElementById('c') as HTMLCanvasElement;
   const stage = new Stage(canvas, { mode: 'static', quality: (q.get('quality') as 'ultra') ?? 'ultra', adaptive: false });
+  const t0 = performance.now();
   await stage.setMascot(def, config, { instant: true });
+  (window as unknown as { __buildMs?: number }).__buildMs = performance.now() - t0;
   stage.freeze(Number(q.get('t') ?? 3.1), (q.get('clip') as ClipId) || undefined);
   const hide = q.get('hide');
   if (hide) stage.scene.traverse((o) => { const t = o as unknown as { isPoints?: boolean; isSprite?: boolean; isLineSegments?: boolean }; if ((hide.includes('points') && (t.isPoints || t.isLineSegments)) || (hide.includes('sprites') && t.isSprite)) o.visible = false; });
   if (hide) stage.freeze(Number(q.get('t') ?? 3.1), (q.get('clip') as ClipId) || undefined);
   window.__stats = stage.stats();
+  (window as unknown as { __stage?: Stage }).__stage = stage;
   window.__ready = true;
 }
 main().catch((e) => { window.__error = String(e?.stack ?? e); });

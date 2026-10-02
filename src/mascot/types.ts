@@ -1,3 +1,4 @@
+import type { BlobSpec } from '../engine/blob';
 export type Vec3 = [number, number, number];
 
 /** Animation anchors. A part that declares a role is driven by the generic animator. */
@@ -37,9 +38,9 @@ export type AgentStateId =
  * iris/glow — eye materials tinted by a colour slot
  * eye/inner/highlight — fixed look, uses `color` where given
  */
-export type Finish = 'surface' | 'matte' | 'gloss' | 'iris' | 'glow' | 'eye' | 'sclera' | 'blush' | 'highlight' | 'inner' | 'pad';
+export type Finish = 'surface' | 'matte' | 'gloss' | 'iris' | 'glow' | 'eye' | 'sclera' | 'blush' | 'highlight' | 'inner' | 'pad' | 'glass';
 
-export type Shape = 'sphere' | 'dome' | 'capsule' | 'cone' | 'ring' | 'smile';
+export type Shape = 'sphere' | 'dome' | 'capsule' | 'cone' | 'ring' | 'smile' | 'blob' | 'cap' | 'disc' | 'arc' | 'wmouth';
 
 /** Procedural markings painted in object space on fur + skin (spots, rosettes, patches). */
 export interface Markings {
@@ -52,6 +53,8 @@ export interface Markings {
   size: number;
   seed?: number;
 }
+
+export interface FurMask { center: Vec3; radii: Vec3; /** Fur length multiplier at the centre of the mask (0 = bare). */ fade?: number }
 
 export interface PartDef {
   id: string;
@@ -74,13 +77,19 @@ export interface PartDef {
   color?: string;
   furry?: boolean;
   /** Ellipsoid (in geometry space) where fur fades to bare skin — keeps faces readable. */
-  furMask?: { center: Vec3; radii: Vec3 };
+  furMask?: FurMask | FurMask[];
+  /** Fur flow: gravity by default; radial makes strands sweep away from `origin` (faces). */
+  flow?: { radial?: number; origin?: Vec3; bend?: number };
+  /** Geometry for shape 'blob'. */
+  blob?: BlobSpec;
   /** Per-part multipliers on the character's fur profile (e.g. a fluffier topknot). */
   fur?: { length?: number; density?: number };
   markings?: Markings;
   /** Only visible when this accessory is enabled. */
   accessory?: string;
   hit?: boolean;
+  /** Small facial features: no shadow casting or receiving (low-res shadow maps turn them blocky). */
+  flat?: boolean;
 }
 
 export interface ColorControl { slot: string; label: string; swatches: string[] }
@@ -126,6 +135,8 @@ export interface MascotDefinition {
   sitDrop: number;
   /** Quadrupeds reuse biped clips: channels for a missing role are redirected to this one (armL → legFL). */
   roleAliases?: Partial<Record<Role, Role>>;
+  /** Proxy spheres (in a part's local space) for contact ambient occlusion. Up to six. */
+  occluders?: { role: Role; center: Vec3; r: number }[];
   parts: PartDef[];
   customization: {
     colors: ColorControl[];

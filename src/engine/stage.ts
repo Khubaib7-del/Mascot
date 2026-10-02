@@ -62,6 +62,8 @@ export class Stage {
   private envCache = new Map<LightingId, { texture: Texture; dispose: () => void }>();
   private light: LightingDef = LIGHTING.studio;
   private envFade = 1;
+  private lightK = 1;
+  private envK = 1;
   private pendingLight: LightingId | null = null;
   private world: WorldRuntime | null = null;
   private worldId: WorldId | null = null;
@@ -393,14 +395,18 @@ export class Stage {
     let entry = this.envCache.get(id);
     if (!entry) { entry = buildEnvironmentTexture(this.renderer, def); this.envCache.set(id, entry); }
     this.light = def;
+    // Characters are mostly white/cream. Bright presets were tuned for mid-tones and clip a white coat to flat paper,
+    // so their light is scaled down; dark presets keep nearly their authored strength.
+    this.lightK = def.ui === 'light' ? 0.8 : 0.85;
+    this.envK = def.ui === 'light' ? 0.18 : 0.8;
     this.scene.environment = entry.texture;
-    this.scene.environmentIntensity = def.envIntensity;
+    this.scene.environmentIntensity = def.envIntensity * this.envK;
     this.renderer.toneMappingExposure = def.exposure;
     (this.ground.material as ShadowMaterial).opacity = def.shadow * 0.7;
     this.instance?.setFurRim(def);
-    const set = (l: DirectionalLight, s: LightingDef['key']) => { l.color.set(s.color); l.intensity = s.intensity; l.position.set(s.at[0], s.at[1] * (l === this.key ? 1.4 : 1), s.at[2]); };
+    const set = (l: DirectionalLight, s: LightingDef['key']) => { l.color.set(s.color); l.intensity = s.intensity * this.lightK; l.position.set(s.at[0], s.at[1] * (l === this.key ? 1.4 : 1), s.at[2]); };
     set(this.key, def.key); set(this.rim, def.rim);
-    this.fill.color.set(def.fill.sky); this.fill.groundColor.set(def.fill.ground); this.fill.intensity = def.fill.intensity;
+    this.fill.color.set(def.fill.sky); this.fill.groundColor.set(def.fill.ground); this.fill.intensity = def.fill.intensity * this.envK;
     this.world?.applyLighting(def);
     this.applyFog();
     this.veilU.uColor.value.set(...hexToRgb(def.fog));
@@ -473,10 +479,10 @@ export class Stage {
     if (this.pendingLight) {
       this.envFade = Math.max(0, this.envFade - dt * 6);
       if (this.envFade <= 0) { this.activateLighting(this.pendingLight); this.pendingLight = null; }
-      this.scene.environmentIntensity = this.light.envIntensity * this.envFade;
+      this.scene.environmentIntensity = this.light.envIntensity * this.envK * this.envFade;
     } else if (this.envFade < 1) {
       this.envFade = Math.min(1, this.envFade + dt * 3);
-      this.scene.environmentIntensity = this.light.envIntensity * this.envFade;
+      this.scene.environmentIntensity = this.light.envIntensity * this.envK * this.envFade;
     }
 
     // Progressive load: skin first, then world fades in, then fur layers ramp up.

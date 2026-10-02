@@ -43,13 +43,14 @@ export const studio: WorldDef = {
     const geo = tr.add(new BufferGeometry());
     geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
     const cyc = tr.mesh(geo, standard('#e4e1da', 0.95, { side: DoubleSide })); cyc.receiveShadow = true; g.add(cyc);
-    const ped = tr.mesh(new CylinderGeometry(1.7, 1.78, 0.1, 64), standard('#f3f1ec', 0.7)); ped.position.y = -0.05; ped.receiveShadow = true; g.add(ped);
+    const ped = tr.mesh(new CylinderGeometry(1.7, 1.78, 0.1, 64), standard('#f3f1ec', 0.7)); ped.position.y = -0.035; ped.receiveShadow = true; g.add(ped);
     const box = tr.add(new BoxGeometry(0.2, 5, 2)), boxMat = tr.add(emissive('#ffffff', 2.2));
     for (const x of [-6.5, 6.5]) { const b = new Mesh(box, boxMat); b.position.set(x, 2.8, -3.5); g.add(b); }
     return assemble(tr, g, ctx, {
       sky, fog: 0.0,
       light(l) {
         cyc.material.color.set(l.sky.horizon).lerp(new Color('#ffffff'), 0.2).multiplyScalar(l.ui === 'dark' ? 0.5 : 1);
+        cyc.material.emissive.copy(cyc.material.color); cyc.material.emissiveIntensity = l.ui === 'dark' ? 0.0 : 0.42;
         boxMat.emissive.set(l.key.color); boxMat.emissiveIntensity = l.ui === 'dark' ? 3 : 1.6;
         ped.material.color.set(l.ui === 'dark' ? '#4a4a52' : '#f3f1ec');
       },

@@ -35,7 +35,7 @@ try {
     if (err) { console.error(`[${j.name}] ERROR`, err.split('\n').slice(0, 4).join(' | ')); failed++; await page.close(); continue; }
     const buf = await page.locator('#c').screenshot({ omitBackground: !!j.alpha });
     await writeFile(`${out}/${j.name}.png`, buf);
-    console.log('ok', j.name, JSON.stringify(await page.evaluate(() => window.__stats)));
+    console.log('ok', j.name, JSON.stringify(await page.evaluate(() => ({ ...window.__stats, buildMs: Math.round(window.__buildMs), blobMs: Math.round(globalThis.__blobMs), blobs: globalThis.__blobN }))));
     await page.close();
   }
 } finally {
